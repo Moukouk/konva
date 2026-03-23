@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gabarit fenêtre + tringle + image</title>
+  <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f6fb;
+      color: #1f2937;
+    }
+
+    .page {
+      display: grid;
+      grid-template-columns: 360px 1fr 300px;
+      gap: 16px;
+      padding: 16px;
+      min-height: 100vh;
+    }
+
+    .panel {
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+      align-self: start;
+    }
+
+    .panel h2,
+    .panel h3 {
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+
+    .group-title {
+      margin: 18px 0 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .field input,
+    .field button {
+      width: 100%;
+      padding: 10px 11px;
+      border: 1px solid #d1d5db;
+      border-radius: 9px;
+      font-size: 14px;
+      outline: none;
+      background: #fff;
+    }
+
+    .field input:focus {
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+    }
+
+    .field button {
+      cursor: pointer;
+      background: #f8fafc;
+      font-weight: 600;
+    }
+
+    .field button:hover {
+      background: #eef2f7;
+    }
+
+    .btn-primary {
+      background: #7c3aed !important;
+      color: #fff;
+      border-color: #7c3aed !important;
+    }
+
+    .btn-primary:hover {
+      background: #6d28d9 !important;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: auto;
+      padding: 0;
+      margin: 0;
+      transform: scale(1.1);
+      border: none;
+      box-shadow: none;
+    }
+
+    #container {
+      min-height: 760px;
+      background: #fff;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+    }
+
+    .summary p {
+      margin: 8px 0;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .help {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .help strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .modal-3d {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 24px;
+    }
+
+    .modal-3d.is-open {
+      display: flex;
+    }
+
+    .modal-3d-card {
+      width: min(1200px, 96vw);
+      height: min(820px, 94vh);
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+
+    .modal-3d-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #fafafa;
+    }
+
+    .modal-3d-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .modal-3d-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .modal-3d-actions button {
+      border: 1px solid #d1d5db;
+      background: white;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .modal-3d-actions button:hover {
+      background: #f8fafc;
+    }
+
+    #threeContainer {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #f8fbff 0%, #eef2f7 100%);
+    }
+
+    @media (max-width: 1250px) {
+      .page { grid-template-columns: 1fr; }
+      #container { order: -1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="panel">
+      <h2>Paramètres</h2>
+
+      <div class="group-title">Fenêtre</div>
+
+      <div class="field">
+        <label for="windowWidth">Largeur fenêtre (cm)</label>
+        <input id="windowWidth" type="number" value="120" min="50" />
+      </div>
+
+      <div class="field">
+        <label for="windowHeight">Hauteur fenêtre (cm)</label>
+        <input id="windowHeight" type="number" value="140" min="50" />
+      </div>
+
+      <div class="group-title">Tringle</div>
+
+      <div class="field">
+        <label for="rodLeftOverflow">Débord gauche (cm)</label>
+        <input id="rodLeftOverflow" type="number" value="20" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="rodRightOverflow">Débord droit (cm)</label>
+        <input id="rodRightOverflow" type="number" value="20" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="rodTopOffset">Hauteur au-dessus de la fenêtre (cm)</label>
+        <input id="rodTopOffset" type="number" value="15" min="0" />
+      </div>
+
+      <div class="group-title">Fixations</div>
+
+      <div class="field">
+        <label for="supportLeftInset">Extrémité gauche → fixation gauche (cm)</label>
+        <input id="supportLeftInset" type="number" value="10" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="supportRightInset">Extrémité droite → fixation droite (cm)</label>
+        <input id="supportRightInset" type="number" value="10" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="supportArmLength">Distance tige → fixation FG/FD (cm)</label>
+        <input id="supportArmLength" type="number" value="8" min="0" />
+      </div>
+
+      <div class="group-title">Image</div>
+
+      <div class="field">
+        <label for="imageUpload">Photo de la fenêtre</label>
+        <input id="imageUpload" type="file" accept="image/*" />
+      </div>
+
+      <div class="field">
+        <label class="checkbox-row">
+          <input id="clipImageToWindow" type="checkbox" checked />
+          Masquer ce qui dépasse du cadre
+        </label>
+      </div>
+
+      <div class="field">
+        <button id="fitImageBtn" type="button">Ajuster l'image à la fenêtre</button>
+      </div>
+
+      <div class="field">
+        <button id="resetImageBtn" type="button">Recentrer l'image</button>
+      </div>
+
+      <div class="group-title">Recadrage image</div>
+
+      <div class="field">
+        <label for="cropLeft">Couper à gauche (px)</label>
+        <input id="cropLeft" type="number" value="0" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="cropRight">Couper à droite (px)</label>
+        <input id="cropRight" type="number" value="0" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="cropTop">Couper en haut (px)</label>
+        <input id="cropTop" type="number" value="0" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="cropBottom">Couper en bas (px)</label>
+        <input id="cropBottom" type="number" value="0" min="0" />
+      </div>
+
+      <div class="field">
+        <button id="resetCropBtn" type="button">Réinitialiser le recadrage</button>
+      </div>
+
+      <div class="group-title">Affichage</div>
+
+      <div class="field">
+        <label for="scalePxPerCm">Échelle d'affichage (px/cm)</label>
+        <input id="scalePxPerCm" type="number" value="4" min="1" step="0.1" />
+      </div>
+
+      <div class="group-title">3D</div>
+
+      <div class="field">
+        <button id="open3DBtn" type="button" class="btn-primary">Ouvrir la visualisation 3D</button>
+      </div>
+    </div>
+
+    <div id="container"></div>
+
+    <div class="panel summary">
+      <h3>Résumé</h3>
+      <p id="summaryWindow"></p>
+      <p id="summaryRod"></p>
+      <p id="summaryLeft"></p>
+      <p id="summaryRight"></p>
+      <p id="summaryTop"></p>
+      <p id="summarySupportLeft"></p>
+      <p id="summarySupportRight"></p>
+      <p id="summarySupportArm"></p>
+      <p id="summaryBetweenSupports"></p>
+      <p id="summaryCrop"></p>
+      <p id="summaryClipMode"></p>
+
+      <div class="help">
+        <strong>Manipulations</strong>
+        Rouge G / D : modifie la longueur totale de la tringle.<br />
+        Turquoise FG / FD : déplace les fixations.<br />
+        Fais glisser la tringle verticalement pour changer sa hauteur.<br />
+        Clique sur l’image pour afficher les poignées de redimensionnement.<br />
+        Utilise la molette de la souris sur l’image pour zoomer.<br />
+        Le recadrage coupe les bords inutiles de la photo.
+      </div>
+    </div>
+  </div>
+
+  <div id="modal3D" class="modal-3d" aria-hidden="true">
+    <div class="modal-3d-card">
+      <div class="modal-3d-header">
+        <div class="modal-3d-title">Visualisation 3D</div>
+        <div class="modal-3d-actions">
+          <button id="reset3DViewBtn" type="button">Réinitialiser la vue</button>
+          <button id="export3DBtn" type="button">Exporter PNG 3D</button>
+          <button id="close3DModalBtn" type="button">Fermer</button>
+        </div>
+      </div>
+      <div id="threeContainer"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./index.js"></script>
+</body>
+</html>

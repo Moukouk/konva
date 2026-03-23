@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Éditeur fenêtre + tringle + supports</title>
+  <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f7fb;
+      color: #1f2937;
+    }
+
+    .page {
+      display: grid;
+      grid-template-columns: 320px 1fr 280px;
+      gap: 16px;
+      padding: 16px;
+      min-height: 100vh;
+    }
+
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.08);
+      align-self: start;
+    }
+
+    .panel h2,
+    .panel h3 {
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+
+    .group-title {
+      margin: 18px 0 10px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #374151;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+    }
+
+    #container {
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.08);
+      min-height: 650px;
+    }
+
+    .summary p {
+      margin: 8px 0;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .help {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .help strong {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 1200px) {
+      .page {
+        grid-template-columns: 1fr;
+      }
+
+      #container {
+        order: -1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="panel">
+      <h2>Paramètres</h2>
+
+      <div class="group-title">Fenêtre</div>
+
+      <div class="field">
+        <label for="windowWidth">Largeur fenêtre (cm)</label>
+        <input id="windowWidth" type="number" value="120" min="50" />
+      </div>
+
+      <div class="field">
+        <label for="windowHeight">Hauteur fenêtre (cm)</label>
+        <input id="windowHeight" type="number" value="140" min="50" />
+      </div>
+
+      <div class="group-title">Tringle</div>
+
+      <div class="field">
+        <label for="rodLeftOverflow">Débord gauche (cm)</label>
+        <input id="rodLeftOverflow" type="number" value="20" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="rodRightOverflow">Débord droit (cm)</label>
+        <input id="rodRightOverflow" type="number" value="20" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="rodTopOffset">Hauteur au-dessus de la fenêtre (cm)</label>
+        <input id="rodTopOffset" type="number" value="15" min="0" />
+      </div>
+
+      <div class="group-title">Fixations</div>
+
+      <div class="field">
+        <label for="supportLeftInset">Extrémité gauche → support gauche (cm)</label>
+        <input id="supportLeftInset" type="number" value="10" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="supportRightInset">Extrémité droite → support droit (cm)</label>
+        <input id="supportRightInset" type="number" value="10" min="0" />
+      </div>
+
+      <div class="field">
+        <label for="supportArmLength">Longueur du pied d'ancrage (cm)</label>
+        <input id="supportArmLength" type="number" value="8" min="0" />
+      </div>
+
+      <div class="group-title">Affichage</div>
+
+      <div class="field">
+        <label for="scalePxPerCm">Échelle d'affichage (px/cm)</label>
+        <input id="scalePxPerCm" type="number" value="4" min="1" step="0.1" />
+      </div>
+    </div>
+
+    <div id="container"></div>
+
+    <div class="panel summary">
+      <h3>Résumé</h3>
+      <p id="summaryWindow"></p>
+      <p id="summaryRod"></p>
+      <p id="summaryLeft"></p>
+      <p id="summaryRight"></p>
+      <p id="summaryTop"></p>
+      <p id="summarySupportLeft"></p>
+      <p id="summarySupportRight"></p>
+      <p id="summarySupportArm"></p>
+      <p id="summaryBetweenSupports"></p>
+
+      <div class="help">
+        <strong>Manipulations</strong>
+        Rouge G / D : modifie la longueur totale de la tringle.<br />
+        Turquoise SL / SR : déplace les points de fixation.<br />
+        Fais glisser la tringle verticalement pour changer sa hauteur.
+      </div>
+    </div>
+  </div>
+
+  <script src="./index.js"></script>
+</body>
+</html>
