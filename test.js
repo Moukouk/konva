@@ -23,6 +23,11 @@ const ui = {
   profilePoints: el("profilePoints"),
   splineSubdivisions: el("splineSubdivisions"),
   smoothing: el("smoothing"),
+  axisOffset: el("axisOffset"),
+  radiusScale: el("radiusScale"),
+  bilateralProfile: el("bilateralProfile"),
+  preserveAspect: el("preserveAspect"),
+  flipProfile: el("flipProfile"),
   latheSegments: el("latheSegments"),
   modelHeight: el("modelHeight"),
   closedTop: el("closedTop"),
@@ -289,7 +294,7 @@ let mats = createMaterials();
 // ================================================================
 // SILHOUETTE EXTRACTION — OpenCV Canny
 // ================================================================
-function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize) {
+function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize, axisOffsetPct, bilateral) {
   const src = cv.matFromImageData(imgData);
   const gray = new cv.Mat();
   const blurred = new cv.Mat();
@@ -327,9 +332,8 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
 
   if (maxIdx >= 0) {
     const cnt = contours.get(maxIdx);
-    const rect = cv.boundingRect(cnt);
 
-    // For each row in the bounding rect, find min and max X on the contour
+    // For each row, find min and max X on the contour
     const rowMinX = new Float32Array(height).fill(width);
     const rowMaxX = new Float32Array(height).fill(-1);
 
@@ -352,7 +356,7 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
     }
 
     if (bottomY > topY) {
-      // Center X = average mid-point
+      // Center X = average bilateral midpoint of each row
       let sumC = 0, cntC = 0;
       for (let y = topY; y <= bottomY; y++) {
         if (rowMaxX[y] >= 0 && rowMinX[y] < width) {
@@ -360,11 +364,20 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
           cntC++;
         }
       }
-      const centerX = cntC > 0 ? sumC / cntC : width / 2;
+      const detectedCenterX = cntC > 0 ? sumC / cntC : width / 2;
+      // Apply manual axis offset as a percentage of image width
+      const centerX = detectedCenterX + (axisOffsetPct / 100) * width;
       const objH = bottomY - topY;
 
       for (let y = topY; y <= bottomY; y++) {
-        const radius = rowMaxX[y] >= 0 ? Math.max(0, rowMaxX[y] - centerX) : 0;
+        let radius;
+        if (bilateral && rowMaxX[y] >= 0 && rowMinX[y] < width) {
+          // Bilateral: use the actual measured half-width of the object (maxX - minX) / 2.
+          // This is independent of centerX, so axisOffsetPct has no effect in this mode.
+          radius = Math.max(0, (rowMaxX[y] - rowMinX[y]) / 2);
+        } else {
+          radius = rowMaxX[y] >= 0 ? Math.max(0, rowMaxX[y] - centerX) : 0;
+        }
         rawProfile.push({
           radius: radius / (objH || 1),
           t: (y - topY) / (objH || 1),
@@ -389,7 +402,7 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
 // ================================================================
 // SILHOUETTE EXTRACTION — Simple threshold (fallback)
 // ================================================================
-function extractSimple(imgData, width, height, thresholdVal) {
+function extractSimple(imgData, width, height, thresholdVal, axisOffsetPct, bilateral) {
   const data = imgData.data;
 
   // Background estimation from corners
@@ -436,13 +449,22 @@ function extractSimple(imgData, width, height, thresholdVal) {
       cntC++;
     }
   }
-  const centerX = cntC > 0 ? sumC / cntC : width / 2;
+  const detectedCenterX = cntC > 0 ? sumC / cntC : width / 2;
+  // Apply manual axis offset as a percentage of image width
+  const centerX = detectedCenterX + (axisOffsetPct / 100) * width;
   const objH = bottomY - topY;
   if (objH <= 0) return [];
 
   const rawProfile = [];
   for (let y = topY; y <= bottomY; y++) {
-    const radius = rightEdge[y] > 0 ? Math.max(0, rightEdge[y] - centerX) : 0;
+    let radius;
+    if (bilateral && rightEdge[y] > 0 && leftEdge[y] < width) {
+      // Bilateral: use the actual measured half-width of the object (right - left) / 2.
+      // This is independent of centerX, so axisOffsetPct has no effect in this mode.
+      radius = Math.max(0, (rightEdge[y] - leftEdge[y]) / 2);
+    } else {
+      radius = rightEdge[y] > 0 ? Math.max(0, rightEdge[y] - centerX) : 0;
+    }
     rawProfile.push({
       radius: radius / (objH || 1),
       t: (y - topY) / (objH || 1),
@@ -521,6 +543,11 @@ function buildModel() {
   const segments = parseInt(ui.latheSegments.value);
   const height = parseFloat(ui.modelHeight.value);
   const matKey = ui.materialType.value;
+  const axisOffsetPct = parseFloat(ui.axisOffset.value);
+  const bilateral = ui.bilateralProfile.checked;
+  const preserveAspect = ui.preserveAspect.checked;
+  const flipProfile = ui.flipProfile.checked;
+  const radiusScaleFactor = parseFloat(ui.radiusScale.value);
 
   ui.status.textContent = "Extraction...";
 
@@ -529,9 +556,9 @@ function buildModel() {
 
   let raw;
   if (mode === "opencv" && cvReady) {
-    raw = extractWithOpenCV(imageData, w, h, threshLow, threshHigh, blur);
+    raw = extractWithOpenCV(imageData, w, h, threshLow, threshHigh, blur, axisOffsetPct, bilateral);
   } else {
-    raw = extractSimple(imageData, w, h, threshLow);
+    raw = extractSimple(imageData, w, h, threshLow, axisOffsetPct, bilateral);
   }
 
   if (raw.length === 0) {
@@ -540,9 +567,21 @@ function buildModel() {
   }
 
   const resampled = resampleProfile(raw, numPoints, smoothPasses);
+
+  // Optionally flip the profile (useful when image is upside-down)
+  if (flipProfile) resampled.reverse();
+
   const maxR = Math.max(...resampled);
   const scale = maxR > 0 ? 1 / maxR : 1;
-  const rScale = height * 0.3;
+
+  // Preserve aspect ratio: raw radii are normalised by objH (pixel height), so maxR equals
+  // maxPixelRadius / objHeightPixels — the true half-width-to-height ratio of the object.
+  // Multiplying by height gives a 3D radius that matches the image proportions exactly.
+  // When disabled, a fixed factor of 0.3 is used instead (original behaviour).
+  const aspectBasedScale = height * maxR; // radius at which the profile matches the image aspect ratio
+  const rScale = preserveAspect
+    ? aspectBasedScale * radiusScaleFactor
+    : height * 0.3 * radiusScaleFactor;
 
   const normalised = resampled.map((r) => r * scale * rScale);
   const profileVec2 = applySpline(normalised, height, splineSub);
@@ -706,7 +745,8 @@ function updateReferencePlane() {
       side: THREE.DoubleSide,
     })
   );
-  referencePlane.position.set(-(planeW / 2 + 2.5), planeH / 2, -2);
+  // Position the reference image directly beside the 3D model at the same height
+  referencePlane.position.set(-(planeW / 2 + 1.5), planeH / 2, 0);
   scene.add(referencePlane);
 }
 
@@ -772,6 +812,8 @@ bindSlider(ui.gaussBlur, el("gaussBlurVal"), buildModel);
 bindSlider(ui.profilePoints, el("profilePointsVal"), buildModel);
 bindSlider(ui.splineSubdivisions, el("splineSubdivisionsVal"), buildModel);
 bindSlider(ui.smoothing, el("smoothingVal"), buildModel);
+bindSlider(ui.axisOffset, el("axisOffsetVal"), buildModel);
+bindSlider(ui.radiusScale, el("radiusScaleVal"), buildModel);
 bindSlider(ui.latheSegments, el("latheSegmentsVal"), buildModel);
 bindSlider(ui.modelHeight, el("modelHeightVal"), () => {
   buildModel();
@@ -793,6 +835,9 @@ ui.closedTop.addEventListener("change", buildModel);
 ui.closedBottom.addEventListener("change", buildModel);
 ui.wireframe.addEventListener("change", buildModel);
 ui.showProfileLine.addEventListener("change", buildModel);
+ui.bilateralProfile.addEventListener("change", buildModel);
+ui.preserveAspect.addEventListener("change", buildModel);
+ui.flipProfile.addEventListener("change", buildModel);
 
 ui.materialType.addEventListener("change", () => {
   if (latheMesh) {
