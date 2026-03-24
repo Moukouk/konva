@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visualisation 3D – Tringle de rideau</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f6fb;
+      color: #1f2937;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 18px;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ---- sidebar ---- */
+    .sidebar {
+      width: 290px;
+      min-width: 290px;
+      background: #fff;
+      border-right: 1px solid #e5e7eb;
+      overflow-y: auto;
+      padding: 14px 16px;
+    }
+
+    .sidebar h2 {
+      margin: 0 0 14px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #6d28d9;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .group-title {
+      margin: 16px 0 8px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .field {
+      margin-bottom: 10px;
+    }
+
+    .field label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    .field label span {
+      font-weight: 400;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    .field input[type="number"],
+    .field input[type="range"] {
+      width: 100%;
+      padding: 7px 9px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      background: #fff;
+    }
+
+    .field input[type="number"]:focus {
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 2px rgba(124,58,237,0.12);
+    }
+
+    .field input[type="range"] {
+      padding: 0;
+      border: none;
+      accent-color: #7c3aed;
+      cursor: pointer;
+    }
+
+    .field button {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #f8fafc;
+    }
+
+    .field button:hover { background: #eef2f7; }
+
+    .btn-primary {
+      background: #7c3aed !important;
+      color: #fff !important;
+      border-color: #7c3aed !important;
+    }
+
+    .btn-primary:hover { background: #6d28d9 !important; }
+
+    .btn-danger {
+      background: #fee2e2 !important;
+      color: #b91c1c !important;
+      border-color: #fca5a5 !important;
+    }
+
+    .btn-danger:hover { background: #fecaca !important; }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      cursor: pointer;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      accent-color: #7c3aed;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    /* ---- 3D canvas ---- */
+    #threeContainer {
+      flex: 1;
+      background: linear-gradient(160deg, #eef2f7 0%, #dbe3ef 100%);
+      position: relative;
+    }
+
+    #threeContainer canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .canvas-hint {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15,23,42,0.52);
+      color: #fff;
+      font-size: 12px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .header-actions button {
+      padding: 7px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #fff;
+    }
+
+    .header-actions button:hover { background: #f8fafc; }
+
+    .header-actions .btn-primary {
+      background: #7c3aed;
+      color: #fff;
+      border-color: #7c3aed;
+    }
+
+    .header-actions .btn-primary:hover { background: #6d28d9; }
+
+    /* loading overlay */
+    #loadingOverlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(243,246,251,0.82);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      font-weight: 600;
+      color: #6d28d9;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    #loadingOverlay.hidden { opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Tringle de rideau – Visualisation 3D</h1>
+    <div class="header-actions">
+      <button id="resetViewBtn">Réinitialiser la vue</button>
+      <button id="exportBtn" class="btn-primary">Exporter PNG</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+      <h2>Paramètres</h2>
+
+      <div class="group-title">Fenêtre</div>
+
+      <div class="field">
+        <label for="windowWidth">Largeur fenêtre <span id="windowWidthVal">120</span> cm</label>
+        <input id="windowWidth" type="range" min="50" max="300" value="120" step="1" />
+      </div>
+
+      <div class="field">
+        <label for="windowHeight">Hauteur fenêtre <span id="windowHeightVal">140</span> cm</label>
+        <input id="windowHeight" type="range" min="50" max="280" value="140" step="1" />
+      </div>
+
+      <div class="group-title">Tringle</div>
+
+      <div class="field">
+        <label for="rodLeftOverflow">Débord gauche <span id="rodLeftOverflowVal">20</span> cm</label>
+        <input id="rodLeftOverflow" type="range" min="0" max="50" value="20" step="1" />
+      </div>
+
+      <div class="field">
+        <label for="rodRightOverflow">Débord droit <span id="rodRightOverflowVal">20</span> cm</label>
+        <input id="rodRightOverflow" type="range" min="0" max="50" value="20" step="1" />
+      </div>
+
+      <div class="field">
+        <label for="rodTopOffset">Hauteur au-dessus <span id="rodTopOffsetVal">15</span> cm</label>
+        <input id="rodTopOffset" type="range" min="0" max="40" value="15" step="1" />
+      </div>
+
+      <div class="field">
+        <label for="rodRadius">Rayon tringle <span id="rodRadiusVal">1.5</span> cm</label>
+        <input id="rodRadius" type="range" min="0.5" max="4" value="1.5" step="0.1" />
+      </div>
+
+      <div class="group-title">Fixations</div>
+
+      <div class="field">
+        <label for="supportLeftInset">Ext. gauche → FG <span id="supportLeftInsetVal">10</span> cm</label>
+        <input id="supportLeftInset" type="range" min="0" max="80" value="10" step="1" />
+      </div>
+
+      <div class="field">
+        <label for="supportRightInset">Ext. droite → FD <span id="supportRightInsetVal">10</span> cm</label>
+        <input id="supportRightInset" type="range" min="0" max="80" value="10" step="1" />
+      </div>
+
+      <div class="field">
+        <label for="supportArmLength">Saillie du mur (bras) <span id="supportArmLengthVal">8</span> cm</label>
+        <input id="supportArmLength" type="range" min="2" max="25" value="8" step="0.5" />
+      </div>
+
+      <div class="group-title">Matériaux</div>
+
+      <div class="field">
+        <label for="rodColor">Couleur tringle</label>
+        <input id="rodColor" type="color" value="#9333ea" style="width:100%;height:36px;border-radius:8px;border:1px solid #d1d5db;cursor:pointer;" />
+      </div>
+
+      <div class="field">
+        <label for="supportColor">Couleur fixations</label>
+        <input id="supportColor" type="color" value="#374151" style="width:100%;height:36px;border-radius:8px;border:1px solid #d1d5db;cursor:pointer;" />
+      </div>
+
+      <div class="field">
+        <label for="wallColor">Couleur du mur</label>
+        <input id="wallColor" type="color" value="#f5f0e8" style="width:100%;height:36px;border-radius:8px;border:1px solid #d1d5db;cursor:pointer;" />
+      </div>
+
+      <div class="group-title">Image (texture vitre)</div>
+
+      <div class="field">
+        <label for="imageUpload">Photo de la fenêtre</label>
+        <input id="imageUpload" type="file" accept="image/*" style="font-size:12px;" />
+      </div>
+
+      <div class="field">
+        <label class="checkbox-row">
+          <input id="showImage" type="checkbox" checked />
+          Afficher l'image sur la vitre
+        </label>
+      </div>
+
+      <div class="field">
+        <label for="imageOpacity">Opacité image <span id="imageOpacityVal">90</span>%</label>
+        <input id="imageOpacity" type="range" min="10" max="100" value="90" step="5" />
+      </div>
+
+      <div class="field">
+        <button id="removeImageBtn" class="btn-danger">Supprimer l'image</button>
+      </div>
+
+      <div class="group-title">Scène</div>
+
+      <div class="field">
+        <label class="checkbox-row">
+          <input id="showGrid" type="checkbox" checked />
+          Afficher la grille de sol
+        </label>
+      </div>
+
+      <div class="field">
+        <label class="checkbox-row">
+          <input id="showMeasures" type="checkbox" checked />
+          Afficher les mesures
+        </label>
+      </div>
+    </aside>
+
+    <div id="threeContainer">
+      <div id="loadingOverlay">Chargement…</div>
+      <div class="canvas-hint">Clic + glisser : orbite · Scroll : zoom · Clic droit + glisser : déplacer</div>
+    </div>
+  </div>
+
+  <script type="module" src="./test.js"></script>
+</body>
+</html>
