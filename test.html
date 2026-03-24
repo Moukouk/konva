@@ -275,6 +275,17 @@
       <span class="range-value" id="modelHeightVal">5</span>
     </div>
 
+    <label>D&eacute;calage de l&apos;axe de r&eacute;volution (%)</label>
+    <div class="range-row">
+      <input id="axisOffset" type="range" min="-40" max="40" step="1" value="0" />
+      <span class="range-value" id="axisOffsetVal">0</span>
+    </div>
+
+    <label class="checkbox-row">
+      <input id="symmetricProfile" type="checkbox" checked />
+      Profil sym&eacute;trique (moyenne gauche+droite)
+    </label>
+
     <label class="checkbox-row">
       <input id="closedTop" type="checkbox" />
       Fermer le sommet
@@ -290,7 +301,8 @@
 
     <label for="materialType">Mat&eacute;riau</label>
     <select id="materialType">
-      <option value="texture">&#x1F5BC; Texture image</option>
+      <option value="texture">&#x1F5BC; Texture image (cylindrique)</option>
+      <option value="textureFlat">&#x1F5BC; Texture image (silhouette)</option>
       <option value="gold">Or</option>
       <option value="silver">Argent</option>
       <option value="copper">Cuivre</option>

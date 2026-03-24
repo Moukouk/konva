@@ -25,6 +25,8 @@ const ui = {
   smoothing: el("smoothing"),
   latheSegments: el("latheSegments"),
   modelHeight: el("modelHeight"),
+  axisOffset: el("axisOffset"),
+  symmetricProfile: el("symmetricProfile"),
   closedTop: el("closedTop"),
   closedBottom: el("closedBottom"),
   materialType: el("materialType"),
@@ -235,11 +237,28 @@ scene.add(grid);
 function createMaterials() {
   const env = ui.envMapEnabled.checked ? envMap : null;
 
+  // Build texture materials only when an image is available
+  const texMap = imageTexture;
+  const texMatCyl = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    metalness: 0.05,
+    roughness: 0.45,
+    map: texMap,
+    envMap: env,
+    envMapIntensity: 0.5,
+    clearcoat: 0.3,
+    clearcoatRoughness: 0.35,
+  });
+  // "Flat silhouette" variant — front-face only, no backface
+  const texMatFlat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    map: texMap,
+    side: THREE.FrontSide,
+  });
+
   return {
-    texture: new THREE.MeshStandardMaterial({
-      color: 0xffffff, metalness: 0.1, roughness: 0.5,
-      map: imageTexture, envMap: env, envMapIntensity: 0.4,
-    }),
+    texture: texMatCyl,
+    textureFlat: texMatFlat,
     gold: new THREE.MeshStandardMaterial({
       color: 0xcaa24a, metalness: 0.92, roughness: 0.18, envMap: env, envMapIntensity: 1.2,
     }),
@@ -289,7 +308,7 @@ let mats = createMaterials();
 // ================================================================
 // SILHOUETTE EXTRACTION — OpenCV Canny
 // ================================================================
-function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize) {
+function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize, axisOffsetPct, symmetric) {
   const src = cv.matFromImageData(imgData);
   const gray = new cv.Mat();
   const blurred = new cv.Mat();
@@ -302,10 +321,12 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
 
   cv.Canny(blurred, edges, cannyLow, cannyHigh);
 
-  // Dilate edges slightly to close gaps
-  const kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3));
+  // Morphological closing: close gaps in the contour, then dilate
+  const kernel3 = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3));
+  const closed = new cv.Mat();
+  cv.morphologyEx(edges, closed, cv.MORPH_CLOSE, kernel3);
   const dilated = new cv.Mat();
-  cv.dilate(edges, dilated, kernel);
+  cv.dilate(closed, dilated, kernel3);
 
   // Find contours
   const contours = new cv.MatVector();
@@ -327,9 +348,8 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
 
   if (maxIdx >= 0) {
     const cnt = contours.get(maxIdx);
-    const rect = cv.boundingRect(cnt);
 
-    // For each row in the bounding rect, find min and max X on the contour
+    // For each row, find min and max X on the contour
     const rowMinX = new Float32Array(height).fill(width);
     const rowMaxX = new Float32Array(height).fill(-1);
 
@@ -352,7 +372,9 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
     }
 
     if (bottomY > topY) {
-      // Center X = average mid-point
+      const objH = bottomY - topY;
+
+      // Compute center axis: weighted midpoint of all rows, shifted by axisOffsetPct
       let sumC = 0, cntC = 0;
       for (let y = topY; y <= bottomY; y++) {
         if (rowMaxX[y] >= 0 && rowMinX[y] < width) {
@@ -360,11 +382,26 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
           cntC++;
         }
       }
-      const centerX = cntC > 0 ? sumC / cntC : width / 2;
-      const objH = bottomY - topY;
+      const midX = cntC > 0 ? sumC / cntC : width / 2;
+      // axisOffsetPct in [-40,40]; shift by percentage of average half-width
+      let halfWidthSum = 0;
+      for (let y = topY; y <= bottomY; y++) {
+        if (rowMaxX[y] >= 0 && rowMinX[y] < width) {
+          halfWidthSum += (rowMaxX[y] - rowMinX[y]) / 2;
+        }
+      }
+      const avgHalfWidth = cntC > 0 ? halfWidthSum / cntC : 1;
+      const centerX = midX + (axisOffsetPct / 100) * avgHalfWidth;
 
       for (let y = topY; y <= bottomY; y++) {
-        const radius = rowMaxX[y] >= 0 ? Math.max(0, rowMaxX[y] - centerX) : 0;
+        let radius;
+        if (rowMaxX[y] >= 0 && rowMinX[y] < width) {
+          const rightR = Math.max(0, rowMaxX[y] - centerX);
+          const leftR = Math.max(0, centerX - rowMinX[y]);
+          radius = symmetric ? (rightR + leftR) / 2 : rightR;
+        } else {
+          radius = 0;
+        }
         rawProfile.push({
           radius: radius / (objH || 1),
           t: (y - topY) / (objH || 1),
@@ -378,7 +415,8 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
   gray.delete();
   blurred.delete();
   edges.delete();
-  kernel.delete();
+  kernel3.delete();
+  closed.delete();
   dilated.delete();
   contours.delete();
   hierarchy.delete();
@@ -389,7 +427,7 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
 // ================================================================
 // SILHOUETTE EXTRACTION — Simple threshold (fallback)
 // ================================================================
-function extractSimple(imgData, width, height, thresholdVal) {
+function extractSimple(imgData, width, height, thresholdVal, axisOffsetPct, symmetric) {
   const data = imgData.data;
 
   // Background estimation from corners
@@ -430,19 +468,31 @@ function extractSimple(imgData, width, height, thresholdVal) {
   }
 
   let sumC = 0, cntC = 0;
+  let halfWidthSum = 0;
   for (let y = topY; y <= bottomY; y++) {
     if (rightEdge[y] > 0 && leftEdge[y] < width) {
       sumC += (leftEdge[y] + rightEdge[y]) / 2;
+      halfWidthSum += (rightEdge[y] - leftEdge[y]) / 2;
       cntC++;
     }
   }
-  const centerX = cntC > 0 ? sumC / cntC : width / 2;
+  const midX = cntC > 0 ? sumC / cntC : width / 2;
+  const avgHalfWidth = cntC > 0 ? halfWidthSum / cntC : 1;
+  const centerX = midX + (axisOffsetPct / 100) * avgHalfWidth;
+
   const objH = bottomY - topY;
   if (objH <= 0) return [];
 
   const rawProfile = [];
   for (let y = topY; y <= bottomY; y++) {
-    const radius = rightEdge[y] > 0 ? Math.max(0, rightEdge[y] - centerX) : 0;
+    let radius;
+    if (rightEdge[y] > 0 && leftEdge[y] < width) {
+      const rightR = Math.max(0, rightEdge[y] - centerX);
+      const leftR = Math.max(0, centerX - leftEdge[y]);
+      radius = symmetric ? (rightR + leftR) / 2 : rightR;
+    } else {
+      radius = 0;
+    }
     rawProfile.push({
       radius: radius / (objH || 1),
       t: (y - topY) / (objH || 1),
@@ -520,6 +570,8 @@ function buildModel() {
   const splineSub = parseInt(ui.splineSubdivisions.value);
   const segments = parseInt(ui.latheSegments.value);
   const height = parseFloat(ui.modelHeight.value);
+  const axisOffsetPct = parseFloat(ui.axisOffset.value);
+  const symmetric = ui.symmetricProfile.checked;
   const matKey = ui.materialType.value;
 
   ui.status.textContent = "Extraction...";
@@ -527,11 +579,15 @@ function buildModel() {
   const w = previewCanvas.width;
   const h = previewCanvas.height;
 
+  // Preserve image aspect ratio: scale max radius to match image proportions
+  const imgAspect = h / w;
+  const maxModelRadius = height / Math.max(imgAspect, 0.1);
+
   let raw;
   if (mode === "opencv" && cvReady) {
-    raw = extractWithOpenCV(imageData, w, h, threshLow, threshHigh, blur);
+    raw = extractWithOpenCV(imageData, w, h, threshLow, threshHigh, blur, axisOffsetPct, symmetric);
   } else {
-    raw = extractSimple(imageData, w, h, threshLow);
+    raw = extractSimple(imageData, w, h, threshLow, axisOffsetPct, symmetric);
   }
 
   if (raw.length === 0) {
@@ -542,7 +598,8 @@ function buildModel() {
   const resampled = resampleProfile(raw, numPoints, smoothPasses);
   const maxR = Math.max(...resampled);
   const scale = maxR > 0 ? 1 / maxR : 1;
-  const rScale = height * 0.3;
+  // Scale radius proportionally to the image aspect ratio
+  const rScale = 0.5 * maxModelRadius;
 
   const normalised = resampled.map((r) => r * scale * rScale);
   const profileVec2 = applySpline(normalised, height, splineSub);
@@ -568,6 +625,13 @@ function buildModel() {
 
   const geometry = new THREE.LatheGeometry(finalProfile, segments);
   geometry.computeVertexNormals();
+
+  // Fix UV mapping: LatheGeometry V goes bottom→top by default, flip to match image top→bottom
+  const uvAttr = geometry.attributes.uv;
+  for (let i = 0; i < uvAttr.count; i++) {
+    uvAttr.setY(i, 1.0 - uvAttr.getY(i));
+  }
+  uvAttr.needsUpdate = true;
 
   const material = mats[matKey] || mats.gold;
   material.wireframe = ui.wireframe.checked;
@@ -728,8 +792,11 @@ ui.imageUpload.addEventListener("change", (e) => {
       imageTexture = new THREE.Texture(img);
       imageTexture.needsUpdate = true;
       imageTexture.colorSpace = THREE.SRGBColorSpace;
+      // Wrap once around the lathe circumference; clamp vertically
       imageTexture.wrapS = THREE.RepeatWrapping;
       imageTexture.wrapT = THREE.ClampToEdgeWrapping;
+      // flipY = false so the image top maps to the model top after our UV flip
+      imageTexture.flipY = false;
       // Rebuild materials so the texture option uses the new image
       mats = createMaterials();
 
@@ -777,6 +844,7 @@ bindSlider(ui.modelHeight, el("modelHeightVal"), () => {
   buildModel();
   updateReferencePlane();
 });
+bindSlider(ui.axisOffset, el("axisOffsetVal"), buildModel);
 
 bindSlider(ui.bloomStrength, el("bloomStrengthVal"), () => {
   bloomPass.strength = parseFloat(ui.bloomStrength.value);
@@ -789,6 +857,7 @@ bindSlider(ui.imageOpacity, el("imageOpacityVal"), () => {
 });
 
 ui.detectionMode.addEventListener("change", buildModel);
+ui.symmetricProfile.addEventListener("change", buildModel);
 ui.closedTop.addEventListener("change", buildModel);
 ui.closedBottom.addEventListener("change", buildModel);
 ui.wireframe.addEventListener("change", buildModel);
@@ -797,7 +866,7 @@ ui.showProfileLine.addEventListener("change", buildModel);
 ui.materialType.addEventListener("change", () => {
   if (latheMesh) {
     const matKey = ui.materialType.value;
-    if (matKey === "texture" && !imageTexture) {
+    if ((matKey === "texture" || matKey === "textureFlat") && !imageTexture) {
       ui.status.textContent = "Uploadez d'abord une image pour utiliser la texture.";
       return;
     }
