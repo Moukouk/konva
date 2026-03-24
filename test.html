@@ -245,6 +245,12 @@
 
     <div class="section-title">Profil &amp; G&eacute;om&eacute;trie</div>
 
+    <label for="geometryType">Mode de g&eacute;om&eacute;trie</label>
+    <select id="geometryType">
+      <option value="lathe" selected>&#x1F4CD; R&eacute;volution / Lathe (objets sym&eacute;triques)</option>
+      <option value="extrude">&#x1F4E6; Extrusion en profondeur (objets plats)</option>
+    </select>
+
     <label>Points du profil</label>
     <div class="range-row">
       <input id="profilePoints" type="range" min="8" max="300" step="1" value="80" />
@@ -263,10 +269,35 @@
       <span class="range-value" id="smoothingVal">5</span>
     </div>
 
-    <label>Segments de r&eacute;volution</label>
-    <div class="range-row">
-      <input id="latheSegments" type="range" min="12" max="256" step="4" value="96" />
-      <span class="range-value" id="latheSegmentsVal">96</span>
+    <div id="latheOptions">
+      <label>Segments de r&eacute;volution</label>
+      <div class="range-row">
+        <input id="latheSegments" type="range" min="12" max="256" step="4" value="96" />
+        <span class="range-value" id="latheSegmentsVal">96</span>
+      </div>
+
+      <label class="checkbox-row">
+        <input id="closedTop" type="checkbox" />
+        Fermer le sommet
+      </label>
+      <label class="checkbox-row">
+        <input id="closedBottom" type="checkbox" />
+        Fermer la base
+      </label>
+    </div>
+
+    <div id="extrudeOptions" style="display:none">
+      <label>Profondeur d&apos;extrusion</label>
+      <div class="range-row">
+        <input id="extrudeDepth" type="range" min="0.1" max="5" step="0.1" value="1" />
+        <span class="range-value" id="extrudeDepthVal">1</span>
+      </div>
+
+      <label>Biseautage (bevel)</label>
+      <div class="range-row">
+        <input id="bevelSize" type="range" min="0" max="0.5" step="0.01" value="0.05" />
+        <span class="range-value" id="bevelSizeVal">0.05</span>
+      </div>
     </div>
 
     <label>Hauteur du mod&egrave;le</label>
@@ -274,15 +305,6 @@
       <input id="modelHeight" type="range" min="1" max="15" step="0.1" value="5" />
       <span class="range-value" id="modelHeightVal">5</span>
     </div>
-
-    <label class="checkbox-row">
-      <input id="closedTop" type="checkbox" />
-      Fermer le sommet
-    </label>
-    <label class="checkbox-row">
-      <input id="closedBottom" type="checkbox" />
-      Fermer la base
-    </label>
 
     <hr class="separator" />
 
