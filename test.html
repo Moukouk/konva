@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image &rarr; Objet 3D HD</title>
+
+  <!-- OpenCV.js for advanced contour detection -->
+  <script async src="https://docs.opencv.org/4.9.0/opencv.js" id="opencvScript"></script>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0f0f1a;
+      overflow: hidden;
+      color: #e0e0e0;
+    }
+
+    #ui {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      width: 350px;
+      max-height: calc(100vh - 24px);
+      overflow-y: auto;
+      padding: 18px;
+      border-radius: 16px;
+      background: rgba(20, 20, 35, 0.95);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    #ui::-webkit-scrollbar { width: 6px; }
+    #ui::-webkit-scrollbar-track { background: transparent; }
+    #ui::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+    #ui h2 {
+      margin: 0 0 4px;
+      font-size: 20px;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    #ui .subtitle {
+      margin: 0 0 16px;
+      font-size: 12px;
+      color: #888;
+      line-height: 1.5;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #7c3aed;
+      margin: 16px 0 8px;
+    }
+
+    #ui label {
+      display: block;
+      margin-top: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #aaa;
+    }
+
+    #ui input[type="file"] {
+      width: 100%;
+      margin-top: 6px;
+      font-size: 12px;
+      color: #ccc;
+    }
+
+    .range-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .range-row input[type="range"] {
+      flex: 1;
+      accent-color: #7c3aed;
+    }
+
+    .range-row .range-value {
+      font-size: 11px;
+      color: #7c3aed;
+      min-width: 36px;
+      text-align: right;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #ui select {
+      width: 100%;
+      margin-top: 6px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      font-size: 12px;
+      background: rgba(255,255,255,0.06);
+      color: #e0e0e0;
+    }
+
+    #ui button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 10px;
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 13px;
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+
+    #ui button:active { transform: scale(0.97); }
+
+    .btn-dark {
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .btn-dark:hover { background: rgba(255,255,255,0.14); }
+
+    .btn-accent {
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(124,58,237,0.35);
+    }
+    .btn-accent:hover { box-shadow: 0 6px 20px rgba(124,58,237,0.5); }
+
+    .btn-export {
+      background: linear-gradient(135deg, #059669, #34d399);
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(5,150,105,0.3);
+    }
+
+    .separator {
+      border: 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin: 16px 0;
+    }
+
+    #previewCanvas {
+      width: 100%;
+      margin-top: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      display: none;
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      accent-color: #7c3aed;
+      width: 16px;
+      height: 16px;
+    }
+
+    #status {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #666;
+      min-height: 18px;
+    }
+
+    #cvStatus {
+      font-size: 11px;
+      color: #f59e0b;
+      margin-top: 4px;
+    }
+
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <h2>Image &rarr; 3D HD</h2>
+    <p class="subtitle">
+      Uploadez une image d'objet sur fond uni.<br/>
+      La silhouette est extraite via <b>OpenCV.js</b> (Canny) et transform&eacute;e en mod&egrave;le 3D par r&eacute;volution avec lissage par <b>spline Catmull-Rom</b>.
+    </p>
+    <div id="cvStatus">Chargement d'OpenCV.js...</div>
+
+    <label for="imageUpload">Image source</label>
+    <input id="imageUpload" type="file" accept="image/*" />
+
+    <canvas id="previewCanvas"></canvas>
+
+    <hr class="separator" />
+
+    <div class="section-title">D&eacute;tection de contour</div>
+
+    <label>Mode de d&eacute;tection</label>
+    <select id="detectionMode">
+      <option value="opencv" selected>OpenCV Canny (recommand&eacute;)</option>
+      <option value="simple">Seuillage simple (fallback)</option>
+    </select>
+
+    <label>Seuil bas Canny / Seuil simple</label>
+    <div class="range-row">
+      <input id="threshold" type="range" min="1" max="254" step="1" value="50" />
+      <span class="range-value" id="thresholdVal">50</span>
+    </div>
+
+    <label>Seuil haut Canny</label>
+    <div class="range-row">
+      <input id="thresholdHigh" type="range" min="10" max="400" step="5" value="150" />
+      <span class="range-value" id="thresholdHighVal">150</span>
+    </div>
+
+    <label>Flou Gaussien (pr&eacute;traitement)</label>
+    <div class="range-row">
+      <input id="gaussBlur" type="range" min="1" max="15" step="2" value="5" />
+      <span class="range-value" id="gaussBlurVal">5</span>
+    </div>
+
+    <hr class="separator" />
+
+    <div class="section-title">Profil &amp; G&eacute;om&eacute;trie</div>
+
+    <label>Points du profil</label>
+    <div class="range-row">
+      <input id="profilePoints" type="range" min="8" max="300" step="1" value="80" />
+      <span class="range-value" id="profilePointsVal">80</span>
+    </div>
+
+    <label>Lissage spline (subdivisions)</label>
+    <div class="range-row">
+      <input id="splineSubdivisions" type="range" min="0" max="8" step="1" value="3" />
+      <span class="range-value" id="splineSubdivisionsVal">3</span>
+    </div>
+
+    <label>Lissage passes (moyenne mobile)</label>
+    <div class="range-row">
+      <input id="smoothing" type="range" min="0" max="30" step="1" value="5" />
+      <span class="range-value" id="smoothingVal">5</span>
+    </div>
+
+    <label>Segments de r&eacute;volution</label>
+    <div class="range-row">
+      <input id="latheSegments" type="range" min="12" max="256" step="4" value="96" />
+      <span class="range-value" id="latheSegmentsVal">96</span>
+    </div>
+
+    <label>Hauteur du mod&egrave;le</label>
+    <div class="range-row">
+      <input id="modelHeight" type="range" min="1" max="15" step="0.1" value="5" />
+      <span class="range-value" id="modelHeightVal">5</span>
+    </div>
+
+    <label class="checkbox-row">
+      <input id="closedTop" type="checkbox" />
+      Fermer le sommet
+    </label>
+    <label class="checkbox-row">
+      <input id="closedBottom" type="checkbox" />
+      Fermer la base
+    </label>
+
+    <hr class="separator" />
+
+    <div class="section-title">Mat&eacute;riau &amp; Rendu</div>
+
+    <label for="materialType">Mat&eacute;riau</label>
+    <select id="materialType">
+      <option value="texture">&#x1F5BC; Texture image</option>
+      <option value="gold">Or</option>
+      <option value="silver">Argent</option>
+      <option value="copper">Cuivre</option>
+      <option value="chrome">Chrome</option>
+      <option value="ceramic">C&eacute;ramique blanche</option>
+      <option value="glass">Verre</option>
+      <option value="wood">Bois</option>
+      <option value="marble">Marbre</option>
+      <option value="obsidian">Obsidienne</option>
+    </select>
+
+    <label class="checkbox-row">
+      <input id="envMapEnabled" type="checkbox" checked />
+      Environment Map (r&eacute;flexions)
+    </label>
+
+    <label class="checkbox-row">
+      <input id="bloomEnabled" type="checkbox" checked />
+      Bloom (lueur)
+    </label>
+
+    <label>Intensit&eacute; Bloom</label>
+    <div class="range-row">
+      <input id="bloomStrength" type="range" min="0" max="2" step="0.05" value="0.4" />
+      <span class="range-value" id="bloomStrengthVal">0.4</span>
+    </div>
+
+    <label>Opacit&eacute; image de r&eacute;f&eacute;rence</label>
+    <div class="range-row">
+      <input id="imageOpacity" type="range" min="0" max="1" step="0.01" value="0.5" />
+      <span class="range-value" id="imageOpacityVal">0.5</span>
+    </div>
+
+    <label class="checkbox-row">
+      <input id="wireframe" type="checkbox" />
+      Wireframe
+    </label>
+
+    <label class="checkbox-row">
+      <input id="showProfileLine" type="checkbox" checked />
+      Ligne de profil
+    </label>
+
+    <hr class="separator" />
+
+    <button id="resetCamera" class="btn-dark">R&eacute;initialiser la cam&eacute;ra</button>
+    <button id="exportOBJ" class="btn-accent">Exporter OBJ</button>
+    <button id="exportPNG" class="btn-export">Exporter PNG HD</button>
+
+    <div id="status"></div>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <script type="module" src="./test.js"></script>
+</body>
+</html>

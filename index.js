@@ -18,7 +18,20 @@ const state = {
   rodTopOffset: 15,
   supportLeftInset: 10,
   supportRightInset: 10,
-  supportArmLength: 8
+  supportArmLength: 8,
+  obstacle1Enabled: false,
+  obstacle1Width: 120,
+  obstacle1Height: 15,
+  obstacle1Depth: 15,
+  obstacle1OffsetX: 0,
+  obstacle1OffsetY: 0,
+  obstacle2Enabled: false,
+  obstacle2Width: 60,
+  obstacle2Height: 10,
+  obstacle2Depth: 10,
+  obstacle2OffsetX: 0,
+  obstacle2OffsetY: 0,
+  windowThickness: 10
 };
 
 const imageState = {
@@ -43,17 +56,34 @@ const inputs = {
   imageUpload: document.getElementById("imageUpload"),
   fitImageBtn: document.getElementById("fitImageBtn"),
   resetImageBtn: document.getElementById("resetImageBtn"),
+  removeImageBtn: document.getElementById("removeImageBtn"),
   cropLeft: document.getElementById("cropLeft"),
   cropRight: document.getElementById("cropRight"),
   cropTop: document.getElementById("cropTop"),
   cropBottom: document.getElementById("cropBottom"),
   resetCropBtn: document.getElementById("resetCropBtn"),
+  toggleCropModeBtn: document.getElementById("toggleCropModeBtn"),
   clipImageToWindow: document.getElementById("clipImageToWindow"),
   open3DBtn: document.getElementById("open3DBtn"),
   close3DModalBtn: document.getElementById("close3DModalBtn"),
   export3DBtn: document.getElementById("export3DBtn"),
-  reset3DViewBtn: document.getElementById("reset3DViewBtn")
+  reset3DViewBtn: document.getElementById("reset3DViewBtn"),
+  obstacle1Width: document.getElementById("obstacle1Width"),
+  obstacle1Height: document.getElementById("obstacle1Height"),
+  obstacle1Depth: document.getElementById("obstacle1Depth"),
+  obstacle2Width: document.getElementById("obstacle2Width"),
+  obstacle2Height: document.getElementById("obstacle2Height"),
+  obstacle2Depth: document.getElementById("obstacle2Depth"),
+  addObstacleBtn: document.getElementById("addObstacleBtn"),
+  removeObstacle1Btn: document.getElementById("removeObstacle1Btn"),
+  removeObstacle2Btn: document.getElementById("removeObstacle2Btn"),
+  windowThickness: document.getElementById("windowThickness")
 };
+
+const imageControlsSection = document.getElementById("imageControlsSection");
+const obstacle1Section = document.getElementById("obstacle1Section");
+const obstacle2Section = document.getElementById("obstacle2Section");
+const obstacleAddSection = document.getElementById("obstacleAddSection");
 
 const summary = {
   window: document.getElementById("summaryWindow"),
@@ -220,12 +250,171 @@ windowGroup.add(windowGlass);
 windowGroup.add(windowHighlight);
 windowGroup.add(windowBottomShade);
 windowGroup.add(windowLabel);
+const obstacle1Rect = new Konva.Rect({
+  fill: "rgba(139, 92, 246, 0.35)",
+  stroke: "#7c3aed",
+  strokeWidth: 1.5,
+  dash: [6, 3],
+  visible: false,
+  draggable: true
+});
+
+const obstacle1Label = new Konva.Text({
+  fontSize: 12,
+  fill: "#7c3aed",
+  visible: false,
+  listening: false
+});
+
+const obstacle2Rect = new Konva.Rect({
+  fill: "rgba(236, 72, 153, 0.35)",
+  stroke: "#db2777",
+  strokeWidth: 1.5,
+  dash: [6, 3],
+  visible: false,
+  draggable: true
+});
+
+const obstacle2Label = new Konva.Text({
+  fontSize: 12,
+  fill: "#db2777",
+  visible: false,
+  listening: false
+});
+
 windowGroup.add(windowWidthLine);
 windowGroup.add(windowWidthLeftMarker);
 windowGroup.add(windowWidthRightMarker);
 windowGroup.add(windowWidthText);
+windowGroup.add(obstacle1Rect);
+windowGroup.add(obstacle1Label);
+windowGroup.add(obstacle2Rect);
+windowGroup.add(obstacle2Label);
 
 layer.add(windowGroup);
+
+const obstacleTransformer = new Konva.Transformer({
+  rotateEnabled: false,
+  keepRatio: false,
+  enabledAnchors: ["top-left", "top-right", "bottom-left", "bottom-right", "middle-left", "middle-right", "top-center", "bottom-center"],
+  borderStroke: "#7c3aed",
+  anchorFill: "#7c3aed",
+  anchorStroke: "#ffffff",
+  anchorStrokeWidth: 2,
+  anchorSize: 9,
+  visible: false
+});
+layer.add(obstacleTransformer);
+
+function onObstacleDragMove(rect, labelNode, idx) {
+  const lx = rect.x();
+  const ly = rect.y();
+  labelNode.x(lx + 4);
+  labelNode.y(ly + 3);
+}
+
+obstacle1Rect.on("dragmove", function () {
+  onObstacleDragMove(this, obstacle1Label, 1);
+});
+
+obstacle1Rect.on("dragend", function () {
+  const winWPx = state.windowWidth * state.scalePxPerCm;
+  const o1W = state.obstacle1Width * state.scalePxPerCm;
+  const o1H = state.obstacle1Height * state.scalePxPerCm;
+  const baseX = (winWPx - o1W) / 2;
+  const baseY = -o1H;
+  state.obstacle1OffsetX = Math.round((this.x() - baseX) / state.scalePxPerCm);
+  state.obstacle1OffsetY = Math.round((this.y() - baseY) / state.scalePxPerCm);
+  syncInputs();
+  draw();
+});
+
+obstacle1Rect.on("transform", function () {
+  const w = Math.max(4, this.width() * this.scaleX());
+  const h = Math.max(4, this.height() * this.scaleY());
+  this.scaleX(1);
+  this.scaleY(1);
+  this.width(w);
+  this.height(h);
+  obstacle1Label.x(this.x() + 4);
+  obstacle1Label.y(this.y() + 3);
+});
+
+obstacle1Rect.on("transformend", function () {
+  const w = Math.max(4, this.width() * this.scaleX());
+  const h = Math.max(4, this.height() * this.scaleY());
+  this.scaleX(1);
+  this.scaleY(1);
+  this.width(w);
+  this.height(h);
+  state.obstacle1Width = Math.max(1, Math.round(w / state.scalePxPerCm));
+  state.obstacle1Height = Math.max(1, Math.round(h / state.scalePxPerCm));
+  // Recalc offset based on new size
+  const winWPx = state.windowWidth * state.scalePxPerCm;
+  const o1W = state.obstacle1Width * state.scalePxPerCm;
+  const o1H = state.obstacle1Height * state.scalePxPerCm;
+  state.obstacle1OffsetX = Math.round((this.x() - (winWPx - o1W) / 2) / state.scalePxPerCm);
+  state.obstacle1OffsetY = Math.round((this.y() - (-o1H)) / state.scalePxPerCm);
+  syncInputs();
+  draw();
+});
+
+obstacle1Rect.on("click tap", function () {
+  obstacleTransformer.nodes([obstacle1Rect]);
+  obstacleTransformer.visible(true);
+  layer.draw();
+});
+
+obstacle2Rect.on("dragmove", function () {
+  onObstacleDragMove(this, obstacle2Label, 2);
+});
+
+obstacle2Rect.on("dragend", function () {
+  const winWPx = state.windowWidth * state.scalePxPerCm;
+  const o2W = state.obstacle2Width * state.scalePxPerCm;
+  const o2H = state.obstacle2Height * state.scalePxPerCm;
+  const baseX = (winWPx - o2W) / 2;
+  const baseY = -o2H;
+  state.obstacle2OffsetX = Math.round((this.x() - baseX) / state.scalePxPerCm);
+  state.obstacle2OffsetY = Math.round((this.y() - baseY) / state.scalePxPerCm);
+  syncInputs();
+  draw();
+});
+
+obstacle2Rect.on("transform", function () {
+  const w = Math.max(4, this.width() * this.scaleX());
+  const h = Math.max(4, this.height() * this.scaleY());
+  this.scaleX(1);
+  this.scaleY(1);
+  this.width(w);
+  this.height(h);
+  obstacle2Label.x(this.x() + 4);
+  obstacle2Label.y(this.y() + 3);
+});
+
+obstacle2Rect.on("transformend", function () {
+  const w = Math.max(4, this.width() * this.scaleX());
+  const h = Math.max(4, this.height() * this.scaleY());
+  this.scaleX(1);
+  this.scaleY(1);
+  this.width(w);
+  this.height(h);
+  state.obstacle2Width = Math.max(1, Math.round(w / state.scalePxPerCm));
+  state.obstacle2Height = Math.max(1, Math.round(h / state.scalePxPerCm));
+  const winWPx = state.windowWidth * state.scalePxPerCm;
+  const o2W = state.obstacle2Width * state.scalePxPerCm;
+  const o2H = state.obstacle2Height * state.scalePxPerCm;
+  state.obstacle2OffsetX = Math.round((this.x() - (winWPx - o2W) / 2) / state.scalePxPerCm);
+  state.obstacle2OffsetY = Math.round((this.y() - (-o2H)) / state.scalePxPerCm);
+  syncInputs();
+  draw();
+});
+
+obstacle2Rect.on("click tap", function () {
+  obstacleTransformer.nodes([obstacle2Rect]);
+  obstacleTransformer.visible(true);
+  layer.draw();
+});
 
 // image
 let userImageNode = null;
@@ -244,6 +433,49 @@ const imageTransformer = new Konva.Transformer({
 });
 
 layer.add(imageTransformer);
+
+// crop overlay
+let cropModeActive = false;
+
+const cropOverlayGroup = new Konva.Group({ visible: false });
+
+const cropDimTop = new Konva.Rect({ fill: "rgba(0,0,0,0.45)", listening: false });
+const cropDimBottom = new Konva.Rect({ fill: "rgba(0,0,0,0.45)", listening: false });
+const cropDimLeft = new Konva.Rect({ fill: "rgba(0,0,0,0.45)", listening: false });
+const cropDimRight = new Konva.Rect({ fill: "rgba(0,0,0,0.45)", listening: false });
+
+const cropRect = new Konva.Rect({
+  stroke: "#ef4444",
+  strokeWidth: 2,
+  dash: [6, 4],
+  listening: false
+});
+
+cropOverlayGroup.add(cropDimTop);
+cropOverlayGroup.add(cropDimBottom);
+cropOverlayGroup.add(cropDimLeft);
+cropOverlayGroup.add(cropDimRight);
+cropOverlayGroup.add(cropRect);
+
+const cropHandleNames = ["tl", "tc", "tr", "ml", "mr", "bl", "bc", "br"];
+const cropHandles = {};
+
+cropHandleNames.forEach((name) => {
+  const handle = new Konva.Rect({
+    width: 10,
+    height: 10,
+    fill: "#ffffff",
+    stroke: "#ef4444",
+    strokeWidth: 1.5,
+    cornerRadius: 2,
+    draggable: true,
+    name: name
+  });
+  cropHandles[name] = handle;
+  cropOverlayGroup.add(handle);
+});
+
+windowGroup.add(cropOverlayGroup);
 
 // tringle
 const rodGroup = new Konva.Group({
@@ -412,6 +644,16 @@ const supportArmMeasureMarkerA = new Konva.Line({ stroke: "#b45309", strokeWidth
 const supportArmMeasureMarkerB = new Konva.Line({ stroke: "#b45309", strokeWidth: 1.5 });
 const supportArmMeasureText = new Konva.Text({ fontSize: 14, fill: "#b45309" });
 
+const fgWindowMeasureLine = new Konva.Line({ stroke: "#dc2626", strokeWidth: 1.5 });
+const fgWindowMeasureMarkerA = new Konva.Line({ stroke: "#dc2626", strokeWidth: 1.5 });
+const fgWindowMeasureMarkerB = new Konva.Line({ stroke: "#dc2626", strokeWidth: 1.5 });
+const fgWindowMeasureText = new Konva.Text({ fontSize: 14, fill: "#dc2626" });
+
+const fdWindowMeasureLine = new Konva.Line({ stroke: "#dc2626", strokeWidth: 1.5 });
+const fdWindowMeasureMarkerA = new Konva.Line({ stroke: "#dc2626", strokeWidth: 1.5 });
+const fdWindowMeasureMarkerB = new Konva.Line({ stroke: "#dc2626", strokeWidth: 1.5 });
+const fdWindowMeasureText = new Konva.Text({ fontSize: 14, fill: "#dc2626" });
+
 rodGroup.add(rodShadow);
 rodGroup.add(rodLine);
 rodGroup.add(rodHighlight);
@@ -448,29 +690,95 @@ rodGroup.add(supportArmMeasureLine);
 rodGroup.add(supportArmMeasureMarkerA);
 rodGroup.add(supportArmMeasureMarkerB);
 rodGroup.add(supportArmMeasureText);
+rodGroup.add(fgWindowMeasureLine);
+rodGroup.add(fgWindowMeasureMarkerA);
+rodGroup.add(fgWindowMeasureMarkerB);
+rodGroup.add(fgWindowMeasureText);
+rodGroup.add(fdWindowMeasureLine);
+rodGroup.add(fdWindowMeasureMarkerA);
+rodGroup.add(fdWindowMeasureMarkerB);
+rodGroup.add(fdWindowMeasureText);
 
 layer.add(rodGroup);
 
 // poignées
 const leftHandle = new Konva.Group({ draggable: true });
-leftHandle.add(new Konva.Circle({ radius: 10, fill: "#ef4444", stroke: "#ffffff", strokeWidth: 2 }));
-leftHandle.add(new Konva.Text({ x: -18, y: 14, text: "G", fontSize: 14, fill: "#111827" }));
+const leftHandleCircle = new Konva.Circle({ radius: 11, fill: "#ef4444", stroke: "#ffffff", strokeWidth: 2, hitStrokeWidth: 10 });
+leftHandle.add(leftHandleCircle);
+leftHandle.add(new Konva.Text({ x: -18, y: 14, text: "G", fontSize: 14, fontStyle: "bold", fill: "#111827" }));
 layer.add(leftHandle);
 
 const rightHandle = new Konva.Group({ draggable: true });
-rightHandle.add(new Konva.Circle({ radius: 10, fill: "#ef4444", stroke: "#ffffff", strokeWidth: 2 }));
-rightHandle.add(new Konva.Text({ x: -18, y: 14, text: "D", fontSize: 14, fill: "#111827" }));
+const rightHandleCircle = new Konva.Circle({ radius: 11, fill: "#ef4444", stroke: "#ffffff", strokeWidth: 2, hitStrokeWidth: 10 });
+rightHandle.add(rightHandleCircle);
+rightHandle.add(new Konva.Text({ x: -18, y: 14, text: "D", fontSize: 14, fontStyle: "bold", fill: "#111827" }));
 layer.add(rightHandle);
 
+// curseur et effets visuels G
+leftHandle.on("mouseenter", function () {
+  document.body.style.cursor = "ew-resize";
+  leftHandleCircle.fill("#dc2626");
+  leftHandleCircle.radius(13);
+  layer.draw();
+});
+leftHandle.on("mouseleave", function () {
+  document.body.style.cursor = "default";
+  leftHandleCircle.fill("#ef4444");
+  leftHandleCircle.radius(11);
+  layer.draw();
+});
+// curseur et effets visuels D
+rightHandle.on("mouseenter", function () {
+  document.body.style.cursor = "ew-resize";
+  rightHandleCircle.fill("#dc2626");
+  rightHandleCircle.radius(13);
+  layer.draw();
+});
+rightHandle.on("mouseleave", function () {
+  document.body.style.cursor = "default";
+  rightHandleCircle.fill("#ef4444");
+  rightHandleCircle.radius(11);
+  layer.draw();
+});
+
 const supportLeftHandle = new Konva.Group({ draggable: true });
-supportLeftHandle.add(new Konva.Circle({ radius: 8, fill: "#14b8a6", stroke: "#ffffff", strokeWidth: 2 }));
-supportLeftHandle.add(new Konva.Text({ x: -12, y: 12, text: "FG", fontSize: 12, fill: "#111827" }));
+const supportLeftCircle = new Konva.Circle({ radius: 11, fill: "#14b8a6", stroke: "#ffffff", strokeWidth: 2, hitStrokeWidth: 10 });
+supportLeftHandle.add(supportLeftCircle);
+supportLeftHandle.add(new Konva.Text({ x: -12, y: 14, text: "FG", fontSize: 12, fontStyle: "bold", fill: "#111827" }));
 layer.add(supportLeftHandle);
 
 const supportRightHandle = new Konva.Group({ draggable: true });
-supportRightHandle.add(new Konva.Circle({ radius: 8, fill: "#14b8a6", stroke: "#ffffff", strokeWidth: 2 }));
-supportRightHandle.add(new Konva.Text({ x: -12, y: 12, text: "FD", fontSize: 12, fill: "#111827" }));
+const supportRightCircle = new Konva.Circle({ radius: 11, fill: "#14b8a6", stroke: "#ffffff", strokeWidth: 2, hitStrokeWidth: 10 });
+supportRightHandle.add(supportRightCircle);
+supportRightHandle.add(new Konva.Text({ x: -12, y: 14, text: "FD", fontSize: 12, fontStyle: "bold", fill: "#111827" }));
 layer.add(supportRightHandle);
+
+// curseur et effets visuels FG
+supportLeftHandle.on("mouseenter", function () {
+  document.body.style.cursor = "move";
+  supportLeftCircle.fill("#0d9488");
+  supportLeftCircle.radius(13);
+  layer.draw();
+});
+supportLeftHandle.on("mouseleave", function () {
+  document.body.style.cursor = "default";
+  supportLeftCircle.fill("#14b8a6");
+  supportLeftCircle.radius(11);
+  layer.draw();
+});
+// curseur et effets visuels FD
+supportRightHandle.on("mouseenter", function () {
+  document.body.style.cursor = "move";
+  supportRightCircle.fill("#0d9488");
+  supportRightCircle.radius(13);
+  layer.draw();
+});
+supportRightHandle.on("mouseleave", function () {
+  document.body.style.cursor = "default";
+  supportRightCircle.fill("#14b8a6");
+  supportRightCircle.radius(11);
+  layer.draw();
+});
 
 // ------------------------------
 // HELPERS 2D
@@ -687,7 +995,179 @@ function resetCrop() {
 
   applyCropToImage();
   fitImageToWindow();
+  if (cropModeActive) updateCropOverlay();
 }
+
+// --- CROP MODE 2D ---
+function enterCropMode() {
+  if (!userImageNode || !loadedImageElement) return;
+  cropModeActive = true;
+  inputs.toggleCropModeBtn.textContent = "✔ Valider le recadrage";
+  inputs.toggleCropModeBtn.style.background = "#ef4444";
+  inputs.toggleCropModeBtn.style.color = "#fff";
+
+  userImageNode.draggable(false);
+  imageTransformer.nodes([]);
+  imageTransformer.visible(false);
+
+  showFullImageForCrop();
+  updateCropOverlay();
+  cropOverlayGroup.visible(true);
+  cropOverlayGroup.moveToTop();
+  layer.draw();
+}
+
+function exitCropMode() {
+  cropModeActive = false;
+  inputs.toggleCropModeBtn.textContent = "✂ Recadrer sur le schéma 2D";
+  inputs.toggleCropModeBtn.style.background = "";
+  inputs.toggleCropModeBtn.style.color = "";
+
+  cropOverlayGroup.visible(false);
+
+  applyCropToImage();
+  userImageNode.draggable(true);
+  fitImageToWindow();
+  layer.draw();
+}
+
+function showFullImageForCrop() {
+  if (!userImageNode) return;
+
+  userImageNode.crop({ x: 0, y: 0, width: imageState.sourceWidth, height: imageState.sourceHeight });
+  userImageNode.width(imageState.sourceWidth);
+  userImageNode.height(imageState.sourceHeight);
+
+  const box = getWindowInnerBox();
+  const scaleX = box.width / imageState.sourceWidth;
+  const scaleY = box.height / imageState.sourceHeight;
+  const scale = Math.min(scaleX, scaleY);
+
+  userImageNode.scale({ x: scale, y: scale });
+
+  const scaledW = imageState.sourceWidth * scale;
+  const scaledH = imageState.sourceHeight * scale;
+
+  userImageNode.position({
+    x: box.x + (box.width - scaledW) / 2,
+    y: box.y + (box.height - scaledH) / 2
+  });
+
+  layer.draw();
+}
+
+function getCropOverlayCoords() {
+  if (!userImageNode) return null;
+
+  const imgX = userImageNode.x();
+  const imgY = userImageNode.y();
+  const scale = userImageNode.scaleX();
+
+  const fullW = imageState.sourceWidth * scale;
+  const fullH = imageState.sourceHeight * scale;
+
+  const cL = imageState.cropLeft * scale;
+  const cR = imageState.cropRight * scale;
+  const cT = imageState.cropTop * scale;
+  const cB = imageState.cropBottom * scale;
+
+  return {
+    imgX, imgY, fullW, fullH, scale,
+    cropX: imgX + cL,
+    cropY: imgY + cT,
+    cropW: fullW - cL - cR,
+    cropH: fullH - cT - cB
+  };
+}
+
+function updateCropOverlay() {
+  const c = getCropOverlayCoords();
+  if (!c) return;
+
+  cropRect.x(c.cropX);
+  cropRect.y(c.cropY);
+  cropRect.width(c.cropW);
+  cropRect.height(c.cropH);
+
+  cropDimTop.x(c.imgX); cropDimTop.y(c.imgY);
+  cropDimTop.width(c.fullW); cropDimTop.height(c.cropY - c.imgY);
+
+  cropDimBottom.x(c.imgX); cropDimBottom.y(c.cropY + c.cropH);
+  cropDimBottom.width(c.fullW); cropDimBottom.height(c.imgY + c.fullH - (c.cropY + c.cropH));
+
+  cropDimLeft.x(c.imgX); cropDimLeft.y(c.cropY);
+  cropDimLeft.width(c.cropX - c.imgX); cropDimLeft.height(c.cropH);
+
+  cropDimRight.x(c.cropX + c.cropW); cropDimRight.y(c.cropY);
+  cropDimRight.width(c.imgX + c.fullW - (c.cropX + c.cropW)); cropDimRight.height(c.cropH);
+
+  const hs = 5;
+  cropHandles.tl.position({ x: c.cropX - hs, y: c.cropY - hs });
+  cropHandles.tc.position({ x: c.cropX + c.cropW / 2 - hs, y: c.cropY - hs });
+  cropHandles.tr.position({ x: c.cropX + c.cropW - hs, y: c.cropY - hs });
+  cropHandles.ml.position({ x: c.cropX - hs, y: c.cropY + c.cropH / 2 - hs });
+  cropHandles.mr.position({ x: c.cropX + c.cropW - hs, y: c.cropY + c.cropH / 2 - hs });
+  cropHandles.bl.position({ x: c.cropX - hs, y: c.cropY + c.cropH - hs });
+  cropHandles.bc.position({ x: c.cropX + c.cropW / 2 - hs, y: c.cropY + c.cropH - hs });
+  cropHandles.br.position({ x: c.cropX + c.cropW - hs, y: c.cropY + c.cropH - hs });
+
+  layer.draw();
+}
+
+function onCropHandleDrag(handleName) {
+  const c = getCropOverlayCoords();
+  if (!c) return;
+
+  const handle = cropHandles[handleName];
+  const hs = 5;
+  const hx = handle.x() + hs;
+  const hy = handle.y() + hs;
+
+  const minSize = 4;
+
+  let newCropL = imageState.cropLeft;
+  let newCropR = imageState.cropRight;
+  let newCropT = imageState.cropTop;
+  let newCropB = imageState.cropBottom;
+
+  if (handleName === "tl" || handleName === "ml" || handleName === "bl") {
+    const px = Math.max(c.imgX, Math.min(hx, c.imgX + c.fullW - minSize));
+    newCropL = Math.round((px - c.imgX) / c.scale);
+  }
+  if (handleName === "tr" || handleName === "mr" || handleName === "br") {
+    const px = Math.max(c.imgX + minSize, Math.min(hx, c.imgX + c.fullW));
+    newCropR = Math.round((c.imgX + c.fullW - px) / c.scale);
+  }
+  if (handleName === "tl" || handleName === "tc" || handleName === "tr") {
+    const py = Math.max(c.imgY, Math.min(hy, c.imgY + c.fullH - minSize));
+    newCropT = Math.round((py - c.imgY) / c.scale);
+  }
+  if (handleName === "bl" || handleName === "bc" || handleName === "br") {
+    const py = Math.max(c.imgY + minSize, Math.min(hy, c.imgY + c.fullH));
+    newCropB = Math.round((c.imgY + c.fullH - py) / c.scale);
+  }
+
+  newCropL = Math.max(0, Math.min(newCropL, imageState.sourceWidth - minSize - newCropR));
+  newCropR = Math.max(0, Math.min(newCropR, imageState.sourceWidth - minSize - newCropL));
+  newCropT = Math.max(0, Math.min(newCropT, imageState.sourceHeight - minSize - newCropB));
+  newCropB = Math.max(0, Math.min(newCropB, imageState.sourceHeight - minSize - newCropT));
+
+  imageState.cropLeft = newCropL;
+  imageState.cropRight = newCropR;
+  imageState.cropTop = newCropT;
+  imageState.cropBottom = newCropB;
+
+  inputs.cropLeft.value = newCropL;
+  inputs.cropRight.value = newCropR;
+  inputs.cropTop.value = newCropT;
+  inputs.cropBottom.value = newCropB;
+
+  updateCropOverlay();
+}
+
+cropHandleNames.forEach((name) => {
+  cropHandles[name].on("dragmove", () => onCropHandleDrag(name));
+});
 
 function updateSummary() {
   summary.window.textContent = `Fenêtre : ${state.windowWidth} cm × ${state.windowHeight} cm`;
@@ -848,10 +1328,95 @@ function draw() {
   supportArmMeasureText.x(verticalMeasureX - 20);
   supportArmMeasureText.y(supportBottomY / 2 - 8);
 
+  // Obstacles 2D
+  const winWPx = windowWidthPx;
+  if (state.obstacle1Enabled) {
+    const o1W = state.obstacle1Width * state.scalePxPerCm;
+    const o1H = state.obstacle1Height * state.scalePxPerCm;
+    const o1Ox = state.obstacle1OffsetX * state.scalePxPerCm;
+    const o1Oy = state.obstacle1OffsetY * state.scalePxPerCm;
+    const o1X = (winWPx - o1W) / 2 + o1Ox;
+    const o1Y = -o1H + o1Oy;
+    obstacle1Rect.x(o1X);
+    obstacle1Rect.y(o1Y);
+    obstacle1Rect.width(o1W);
+    obstacle1Rect.height(o1H);
+    obstacle1Rect.scaleX(1);
+    obstacle1Rect.scaleY(1);
+    obstacle1Rect.visible(true);
+    obstacle1Label.text(`Obs.1 ${state.obstacle1Width}×${state.obstacle1Height}`);
+    obstacle1Label.x(o1X + 4);
+    obstacle1Label.y(o1Y + 3);
+    obstacle1Label.visible(true);
+  } else {
+    obstacle1Rect.visible(false);
+    obstacle1Label.visible(false);
+    if (obstacleTransformer.nodes().indexOf(obstacle1Rect) >= 0) {
+      obstacleTransformer.nodes([]);
+      obstacleTransformer.visible(false);
+    }
+  }
+
+  if (state.obstacle2Enabled) {
+    const o2W = state.obstacle2Width * state.scalePxPerCm;
+    const o2H = state.obstacle2Height * state.scalePxPerCm;
+    const o2Ox = state.obstacle2OffsetX * state.scalePxPerCm;
+    const o2Oy = state.obstacle2OffsetY * state.scalePxPerCm;
+    const o2X = (winWPx - o2W) / 2 + o2Ox;
+    const o2Y = -o2H + o2Oy;
+    obstacle2Rect.x(o2X);
+    obstacle2Rect.y(o2Y);
+    obstacle2Rect.width(o2W);
+    obstacle2Rect.height(o2H);
+    obstacle2Rect.scaleX(1);
+    obstacle2Rect.scaleY(1);
+    obstacle2Rect.visible(true);
+    obstacle2Label.text(`Obs.2 ${state.obstacle2Width}×${state.obstacle2Height}`);
+    obstacle2Label.x(o2X + 4);
+    obstacle2Label.y(o2Y + 3);
+    obstacle2Label.visible(true);
+  } else {
+    obstacle2Rect.visible(false);
+    obstacle2Label.visible(false);
+    if (obstacleTransformer.nodes().indexOf(obstacle2Rect) >= 0) {
+      obstacleTransformer.nodes([]);
+      obstacleTransformer.visible(false);
+    }
+  }
+
+  if (obstacleTransformer.nodes().length > 0) {
+    obstacleTransformer.forceUpdate();
+  }
+
+  // Distance FG -> bord gauche fenêtre / FD -> bord droit fenêtre
+  const winLeftInRod = state.rodLeftOverflow * state.scalePxPerCm;
+  const winRightInRod = winLeftInRod + windowWidthPx;
+  const fgToWinLeftCm = Math.round(state.supportLeftInset - state.rodLeftOverflow);
+  const fdToWinRightCm = Math.round(state.supportRightInset - state.rodRightOverflow);
+  const measureY2 = 170;
+
+  fgWindowMeasureLine.points([winLeftInRod, measureY2, leftSupportX, measureY2]);
+  fgWindowMeasureMarkerA.points([winLeftInRod, measureY2 - 8, winLeftInRod, measureY2 + 8]);
+  fgWindowMeasureMarkerB.points([leftSupportX, measureY2 - 8, leftSupportX, measureY2 + 8]);
+  fgWindowMeasureText.text(`${fgToWinLeftCm} cm`);
+  fgWindowMeasureText.x(winLeftInRod + (leftSupportX - winLeftInRod) / 2 - 20);
+  fgWindowMeasureText.y(measureY2 + 8);
+
+  fdWindowMeasureLine.points([rightSupportX, measureY2, winRightInRod, measureY2]);
+  fdWindowMeasureMarkerA.points([rightSupportX, measureY2 - 8, rightSupportX, measureY2 + 8]);
+  fdWindowMeasureMarkerB.points([winRightInRod, measureY2 - 8, winRightInRod, measureY2 + 8]);
+  fdWindowMeasureText.text(`${fdToWinRightCm} cm`);
+  fdWindowMeasureText.x(rightSupportX + (winRightInRod - rightSupportX) / 2 - 20);
+  fdWindowMeasureText.y(measureY2 + 8);
+
   leftHandle.position({ x: rodX, y: rodY });
+  leftHandle._fixedY = rodY;
   rightHandle.position({ x: rodX + rodWidthPx, y: rodY });
+  rightHandle._fixedY = rodY;
   supportLeftHandle.position({ x: rodX + leftSupportX, y: rodY + supportBottomY });
+  supportLeftHandle._rodY = rodY;
   supportRightHandle.position({ x: rodX + rightSupportX, y: rodY + supportBottomY });
+  supportRightHandle._rodY = rodY;
 
   if (userImageNode && imageTransformer.nodes().length > 0) {
     imageTransformer.forceUpdate();
@@ -886,6 +1451,8 @@ const threeState = {
   wallMesh: null,
   floorMesh: null,
   photoPlane: null,
+  obstacle1Mesh: null,
+  obstacle2Mesh: null,
   animationId: null
 };
 
@@ -1037,13 +1604,15 @@ function ensure3DInitialized() {
   scene.add(supportRightStem);
 
   const supportLeftFoot = new THREE.Mesh(
-    new THREE.BoxGeometry(10, 1.8, 10),
+    new THREE.CylinderGeometry(5, 5, 1.8, 32),
     supportMat
   );
   const supportRightFoot = new THREE.Mesh(
-    new THREE.BoxGeometry(10, 1.8, 10),
+    new THREE.CylinderGeometry(5, 5, 1.8, 32),
     supportMat
   );
+  supportLeftFoot.rotation.x = Math.PI / 2;
+  supportRightFoot.rotation.x = Math.PI / 2;
   supportLeftFoot.castShadow = true;
   supportRightFoot.castShadow = true;
   scene.add(supportLeftFoot);
@@ -1054,10 +1623,11 @@ function ensure3DInitialized() {
     new THREE.MeshBasicMaterial({
       color: 0xffffff,
       transparent: true,
-      opacity: 0
+      opacity: 0,
+      side: THREE.DoubleSide
     })
   );
-  photoPlane.position.z = 5.2;
+  photoPlane.position.z = 12.5;
   scene.add(photoPlane);
 
   threeState.scene = scene;
@@ -1075,7 +1645,39 @@ function ensure3DInitialized() {
   threeState.supportRightFoot = supportRightFoot;
   threeState.wallMesh = wallMesh;
   threeState.floorMesh = floorMesh;
+  const obstacleMat1 = new THREE.MeshStandardMaterial({
+    color: 0x7c3aed,
+    roughness: 0.6,
+    metalness: 0.15,
+    transparent: true,
+    opacity: 0.75
+  });
+  const obstacle1Mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(10, 10, 10),
+    obstacleMat1
+  );
+  obstacle1Mesh.castShadow = true;
+  obstacle1Mesh.visible = false;
+  scene.add(obstacle1Mesh);
+
+  const obstacleMat2 = new THREE.MeshStandardMaterial({
+    color: 0xdb2777,
+    roughness: 0.6,
+    metalness: 0.15,
+    transparent: true,
+    opacity: 0.75
+  });
+  const obstacle2Mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(10, 10, 10),
+    obstacleMat2
+  );
+  obstacle2Mesh.castShadow = true;
+  obstacle2Mesh.visible = false;
+  scene.add(obstacle2Mesh);
+
   threeState.photoPlane = photoPlane;
+  threeState.obstacle1Mesh = obstacle1Mesh;
+  threeState.obstacle2Mesh = obstacle2Mesh;
   threeState.initialized = true;
 
   reset3DCamera();
@@ -1158,17 +1760,27 @@ function sync3DFromState() {
   const h = state.windowHeight;
   const rodLength = getRodWidthCm();
   const rodY = h / 2 + state.rodTopOffset;
-  const leftX = -rodLength / 2 + state.supportLeftInset;
-  const rightX = rodLength / 2 - state.supportRightInset;
   const armDepth = Math.max(4, state.supportArmLength);
+
+  // Rod center offset: in 2D the window is fixed and the rod extends
+  // asymmetrically. rodLeftOverflow extends left, rodRightOverflow extends right.
+  // To keep the window at x=0 in 3D, offset the rod center:
+  const rodCenterX = (state.rodRightOverflow - state.rodLeftOverflow) / 2;
+  const rodLeftEnd = rodCenterX - rodLength / 2;
+  const rodRightEnd = rodCenterX + rodLength / 2;
+
+  const leftX = rodLeftEnd + state.supportLeftInset;
+  const rightX = rodRightEnd - state.supportRightInset;
 
   wallMesh.scale.set(Math.max(1.2, w / 95), Math.max(1.1, h / 95), 1);
 
-  frameMesh.scale.set(w / 100, h / 100, 1);
-  frameMesh.position.set(0, 0, 0);
+  const thick = state.windowThickness;
+
+  frameMesh.scale.set(w / 100, h / 100, thick / 10);
+  frameMesh.position.set(0, 0, thick / 2);
 
   glassMesh.scale.set((w - 12) / 88, (h - 12) / 88, 1);
-  glassMesh.position.set(0, 0, 4);
+  glassMesh.position.set(0, 0, thick + 1);
 
   if (userImageNode) {
     const box = getWindowInnerBox();
@@ -1195,18 +1807,18 @@ function sync3DFromState() {
 
     photoPlane.geometry.dispose();
     photoPlane.geometry = new THREE.PlaneGeometry(planeW, planeH);
-    photoPlane.position.set(offsetX3D, offsetY3D, 5.2);
+    photoPlane.position.set(offsetX3D, offsetY3D, thick + 2.5);
   } else {
     photoPlane.geometry.dispose();
     photoPlane.geometry = new THREE.PlaneGeometry(w - 16, h - 16);
-    photoPlane.position.set(0, 0, 5.2);
+    photoPlane.position.set(0, 0, thick + 2.5);
   }
 
   rodMesh.scale.set(1, Math.max(0.1, rodLength / 120), 1);
-  rodMesh.position.set(0, rodY, armDepth);
+  rodMesh.position.set(rodCenterX, rodY, armDepth);
 
-  rodLeftCapMesh.position.set(-rodLength / 2, rodY, armDepth);
-  rodRightCapMesh.position.set(rodLength / 2, rodY, armDepth);
+  rodLeftCapMesh.position.set(rodLeftEnd, rodY, armDepth);
+  rodRightCapMesh.position.set(rodRightEnd, rodY, armDepth);
 
   supportLeftStem.scale.set(1, Math.max(0.12, armDepth / 20), 1);
   supportRightStem.scale.set(1, Math.max(0.12, armDepth / 20), 1);
@@ -1216,6 +1828,36 @@ function sync3DFromState() {
 
   supportLeftFoot.position.set(leftX, rodY, 0);
   supportRightFoot.position.set(rightX, rodY, 0);
+
+  // Obstacles 3D
+  const { obstacle1Mesh, obstacle2Mesh } = threeState;
+  if (state.obstacle1Enabled) {
+    const o1W = state.obstacle1Width;
+    const o1H = state.obstacle1Height;
+    const o1D = state.obstacle1Depth;
+    const o1Ox = state.obstacle1OffsetX;
+    const o1Oy = state.obstacle1OffsetY;
+    obstacle1Mesh.geometry.dispose();
+    obstacle1Mesh.geometry = new THREE.BoxGeometry(o1W, o1H, o1D);
+    obstacle1Mesh.position.set(o1Ox, h / 2 + o1H / 2 - o1Oy, o1D / 2);
+    obstacle1Mesh.visible = true;
+  } else {
+    obstacle1Mesh.visible = false;
+  }
+
+  if (state.obstacle2Enabled) {
+    const o2W = state.obstacle2Width;
+    const o2H = state.obstacle2Height;
+    const o2D = state.obstacle2Depth;
+    const o2Ox = state.obstacle2OffsetX;
+    const o2Oy = state.obstacle2OffsetY;
+    obstacle2Mesh.geometry.dispose();
+    obstacle2Mesh.geometry = new THREE.BoxGeometry(o2W, o2H, o2D);
+    obstacle2Mesh.position.set(o2Ox, h / 2 + o2H / 2 - o2Oy, o2D / 2);
+    obstacle2Mesh.visible = true;
+  } else {
+    obstacle2Mesh.visible = false;
+  }
 
   set3DPhotoTexture();
 }
@@ -1268,6 +1910,13 @@ function syncInputs() {
   inputs.supportRightInset.value = state.supportRightInset;
   inputs.supportArmLength.value = state.supportArmLength;
   inputs.scalePxPerCm.value = state.scalePxPerCm;
+  inputs.obstacle1Width.value = state.obstacle1Width;
+  inputs.obstacle1Height.value = state.obstacle1Height;
+  inputs.obstacle1Depth.value = state.obstacle1Depth;
+  inputs.obstacle2Width.value = state.obstacle2Width;
+  inputs.obstacle2Height.value = state.obstacle2Height;
+  inputs.obstacle2Depth.value = state.obstacle2Depth;
+  inputs.windowThickness.value = state.windowThickness;
 }
 
 function readInputs() {
@@ -1280,6 +1929,13 @@ function readInputs() {
   state.supportRightInset = Math.max(0, Number(inputs.supportRightInset.value) || 0);
   state.supportArmLength = Math.max(0, Number(inputs.supportArmLength.value) || 0);
   state.scalePxPerCm = Math.max(1, Number(inputs.scalePxPerCm.value) || 1);
+  state.obstacle1Width = Math.max(1, Number(inputs.obstacle1Width.value) || 1);
+  state.obstacle1Height = Math.max(1, Number(inputs.obstacle1Height.value) || 1);
+  state.obstacle1Depth = Math.max(1, Number(inputs.obstacle1Depth.value) || 1);
+  state.obstacle2Width = Math.max(1, Number(inputs.obstacle2Width.value) || 1);
+  state.obstacle2Height = Math.max(1, Number(inputs.obstacle2Height.value) || 1);
+  state.obstacle2Depth = Math.max(1, Number(inputs.obstacle2Depth.value) || 1);
+  state.windowThickness = Math.max(1, Number(inputs.windowThickness.value) || 1);
   normalizeSupportInsets();
 }
 
@@ -1292,7 +1948,8 @@ function readInputs() {
   inputs.supportLeftInset,
   inputs.supportRightInset,
   inputs.supportArmLength,
-  inputs.scalePxPerCm
+  inputs.scalePxPerCm,
+  inputs.windowThickness
 ].forEach((input) => {
   input.addEventListener("input", () => {
     readInputs();
@@ -1301,17 +1958,102 @@ function readInputs() {
   });
 });
 
+[
+  inputs.obstacle1Width,
+  inputs.obstacle1Height,
+  inputs.obstacle1Depth,
+  inputs.obstacle2Width,
+  inputs.obstacle2Height,
+  inputs.obstacle2Depth
+].forEach((input) => {
+  input.addEventListener("input", () => {
+    readInputs();
+    draw();
+  });
+});
+
+function updateObstacleUI() {
+  const has1 = state.obstacle1Enabled;
+  const has2 = state.obstacle2Enabled;
+  obstacle1Section.style.display = has1 ? "" : "none";
+  obstacle2Section.style.display = has2 ? "" : "none";
+  // Show add button only if we can still add (max 2)
+  obstacleAddSection.style.display = (has1 && has2) ? "none" : "";
+}
+
+inputs.addObstacleBtn.addEventListener("click", () => {
+  if (!state.obstacle1Enabled) {
+    state.obstacle1Enabled = true;
+  } else if (!state.obstacle2Enabled) {
+    state.obstacle2Enabled = true;
+  }
+  updateObstacleUI();
+  readInputs();
+  draw();
+});
+
+inputs.removeObstacle1Btn.addEventListener("click", () => {
+  state.obstacle1Enabled = false;
+  state.obstacle1OffsetX = 0;
+  state.obstacle1OffsetY = 0;
+  // If obstacle2 was active, shift it to slot 1
+  if (state.obstacle2Enabled) {
+    state.obstacle1Enabled = true;
+    state.obstacle1Width = state.obstacle2Width;
+    state.obstacle1Height = state.obstacle2Height;
+    state.obstacle1Depth = state.obstacle2Depth;
+    state.obstacle1OffsetX = state.obstacle2OffsetX;
+    state.obstacle1OffsetY = state.obstacle2OffsetY;
+    state.obstacle2Enabled = false;
+    state.obstacle2Width = 60;
+    state.obstacle2Height = 10;
+    state.obstacle2Depth = 10;
+    state.obstacle2OffsetX = 0;
+    state.obstacle2OffsetY = 0;
+    syncInputs();
+  }
+  updateObstacleUI();
+  readInputs();
+  draw();
+});
+
+inputs.removeObstacle2Btn.addEventListener("click", () => {
+  state.obstacle2Enabled = false;
+  state.obstacle2Width = 60;
+  state.obstacle2Height = 10;
+  state.obstacle2Depth = 10;
+  state.obstacle2OffsetX = 0;
+  state.obstacle2OffsetY = 0;
+  syncInputs();
+  updateObstacleUI();
+  readInputs();
+  draw();
+});
+
 [inputs.cropLeft, inputs.cropRight, inputs.cropTop, inputs.cropBottom].forEach((input) => {
   input.addEventListener("input", () => {
     if (!userImageNode) return;
-    applyCropToImage();
-    fitImageToWindow();
-    draw();
+    if (cropModeActive) {
+      normalizeCropValues();
+      updateCropOverlay();
+    } else {
+      applyCropToImage();
+      fitImageToWindow();
+      draw();
+    }
   });
 });
 
 inputs.resetCropBtn.addEventListener("click", () => {
   resetCrop();
+});
+
+inputs.toggleCropModeBtn.addEventListener("click", () => {
+  if (cropModeActive) {
+    exitCropMode();
+  } else {
+    enterCropMode();
+  }
 });
 
 inputs.clipImageToWindow.addEventListener("change", () => {
@@ -1327,6 +2069,10 @@ inputs.clipImageToWindow.addEventListener("change", () => {
 inputs.imageUpload.addEventListener("change", (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
+
+  if (cropModeActive) exitCropMode();
+
+  imageControlsSection.style.display = "";
 
   const reader = new FileReader();
 
@@ -1417,6 +2163,30 @@ inputs.resetImageBtn.addEventListener("click", () => {
   resetImageToCenter();
 });
 
+inputs.removeImageBtn.addEventListener("click", () => {
+  if (cropModeActive) exitCropMode();
+  if (userImageNode) {
+    imageTransformer.nodes([]);
+    imageTransformer.visible(false);
+    userImageNode.destroy();
+    userImageNode = null;
+  }
+  loadedImageElement = null;
+  imageState.sourceWidth = 0;
+  imageState.sourceHeight = 0;
+  imageState.cropLeft = 0;
+  imageState.cropRight = 0;
+  imageState.cropTop = 0;
+  imageState.cropBottom = 0;
+  inputs.cropLeft.value = 0;
+  inputs.cropRight.value = 0;
+  inputs.cropTop.value = 0;
+  inputs.cropBottom.value = 0;
+  inputs.imageUpload.value = "";
+  imageControlsSection.style.display = "none";
+  draw();
+});
+
 stage.on("wheel", (e) => {
   if (!userImageNode) return;
   if (imageTransformer.nodes().length === 0) return;
@@ -1453,12 +2223,19 @@ stage.on("wheel", (e) => {
 
 stage.on("click tap", (e) => {
   const clickedOnImage = userImageNode && e.target === userImageNode;
+  const clickedOnObstacle = e.target === obstacle1Rect || e.target === obstacle2Rect;
 
   if (!clickedOnImage && e.target !== imageTransformer) {
     imageTransformer.nodes([]);
     imageTransformer.visible(false);
-    layer.draw();
   }
+
+  if (!clickedOnObstacle && e.target !== obstacleTransformer) {
+    obstacleTransformer.nodes([]);
+    obstacleTransformer.visible(false);
+  }
+
+  layer.draw();
 });
 
 rodGroup.on("dragmove", function () {
@@ -1473,41 +2250,59 @@ rodGroup.on("dragend", function () {
   draw();
 });
 
+leftHandle.on("dragstart", function () {
+  this.moveToTop();
+});
 leftHandle.on("dragmove", function () {
   const pointerX = this.x();
   const maxLeft = windowX;
   const deltaPx = maxLeft - pointerX;
   state.rodLeftOverflow = Math.max(0, Math.round(deltaPx / state.scalePxPerCm));
+  this.y(leftHandle._fixedY);
   syncInputs();
   draw();
 });
 
+rightHandle.on("dragstart", function () {
+  this.moveToTop();
+});
 rightHandle.on("dragmove", function () {
   const pointerX = this.x();
   const windowRight = windowX + getWindowWidthPx();
   const deltaPx = pointerX - windowRight;
   state.rodRightOverflow = Math.max(0, Math.round(deltaPx / state.scalePxPerCm));
+  this.y(rightHandle._fixedY);
   syncInputs();
   draw();
 });
 
+supportLeftHandle.on("dragstart", function () {
+  this.moveToTop();
+});
 supportLeftHandle.on("dragmove", function () {
   const rodX = getRodX();
   const rodWidthPx = getRodWidthPx();
   const localX = this.x() - rodX;
   const clampedX = Math.max(0, Math.min(localX, rodWidthPx));
   state.supportLeftInset = Math.round(clampedX / state.scalePxPerCm);
+  const armPx = Math.max(0, this.y() - supportLeftHandle._rodY);
+  state.supportArmLength = Math.max(0, Math.round(armPx / state.scalePxPerCm));
   normalizeSupportInsets();
   syncInputs();
   draw();
 });
 
+supportRightHandle.on("dragstart", function () {
+  this.moveToTop();
+});
 supportRightHandle.on("dragmove", function () {
   const rodX = getRodX();
   const rodWidthPx = getRodWidthPx();
   const localX = this.x() - rodX;
   const clampedX = Math.max(0, Math.min(localX, rodWidthPx));
   state.supportRightInset = Math.round((rodWidthPx - clampedX) / state.scalePxPerCm);
+  const armPx = Math.max(0, this.y() - supportRightHandle._rodY);
+  state.supportArmLength = Math.max(0, Math.round(armPx / state.scalePxPerCm));
   normalizeSupportInsets();
   syncInputs();
   draw();
@@ -1535,5 +2330,6 @@ window.addEventListener("resize", () => {
 // INIT
 // ------------------------------
 syncInputs();
+updateObstacleUI();
 applyImageClip();
 draw();

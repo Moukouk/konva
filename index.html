@@ -54,6 +54,55 @@
       letter-spacing: 0.05em;
     }
 
+    .collapsible-group {
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: #f8fafc;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .group-header:hover {
+      background: #f1f5f9;
+    }
+
+    .group-chevron {
+      font-size: 12px;
+      transition: transform 0.2s ease;
+    }
+
+    .collapsible-group.collapsed .group-chevron {
+      transform: rotate(-90deg);
+    }
+
+    .group-body {
+      padding: 12px 14px;
+      transition: none;
+    }
+
+    .collapsible-group.collapsed .group-body {
+      display: none;
+    }
+
+    .collapsible-group.collapsed .group-header {
+      border-bottom: none;
+    }
+
     .field {
       margin-bottom: 12px;
     }
@@ -226,111 +275,184 @@
     <div class="panel">
       <h2>Paramètres</h2>
 
-      <div class="group-title">Fenêtre</div>
-
-      <div class="field">
-        <label for="windowWidth">Largeur fenêtre (cm)</label>
-        <input id="windowWidth" type="number" value="120" min="50" />
+      <!-- Groupe Fenêtre -->
+      <div class="collapsible-group">
+        <div class="group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span>Fenêtre</span>
+          <span class="group-chevron">▾</span>
+        </div>
+        <div class="group-body">
+          <div class="field">
+            <label for="windowWidth">Largeur fenêtre (cm)</label>
+            <input id="windowWidth" type="number" value="120" min="50" />
+          </div>
+          <div class="field">
+            <label for="windowHeight">Hauteur fenêtre (cm)</label>
+            <input id="windowHeight" type="number" value="140" min="50" />
+          </div>
+          <div class="field">
+            <label for="windowThickness">Épaisseur de la fenêtre (cm, pour la 3D)</label>
+            <input id="windowThickness" type="number" value="10" min="1" />
+          </div>
+        </div>
       </div>
 
-      <div class="field">
-        <label for="windowHeight">Hauteur fenêtre (cm)</label>
-        <input id="windowHeight" type="number" value="140" min="50" />
+      <!-- Groupe Tringle & Fixations -->
+      <div class="collapsible-group">
+        <div class="group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span>Tringle & Fixations</span>
+          <span class="group-chevron">▾</span>
+        </div>
+        <div class="group-body">
+          <div class="group-title" style="margin-top:0">Tringle</div>
+          <div class="field">
+            <label for="rodLeftOverflow">Débord gauche (cm)</label>
+            <input id="rodLeftOverflow" type="number" value="20" min="0" />
+          </div>
+          <div class="field">
+            <label for="rodRightOverflow">Débord droit (cm)</label>
+            <input id="rodRightOverflow" type="number" value="20" min="0" />
+          </div>
+          <div class="field">
+            <label for="rodTopOffset">Hauteur au-dessus de la fenêtre (cm)</label>
+            <input id="rodTopOffset" type="number" value="15" min="0" />
+          </div>
+          <div class="group-title">Fixations</div>
+          <div class="field">
+            <label for="supportLeftInset">Extrémité gauche → fixation gauche (cm)</label>
+            <input id="supportLeftInset" type="number" value="10" min="0" />
+          </div>
+          <div class="field">
+            <label for="supportRightInset">Extrémité droite → fixation droite (cm)</label>
+            <input id="supportRightInset" type="number" value="10" min="0" />
+          </div>
+          <div class="field">
+            <label for="supportArmLength">Distance tige → fixation FG/FD (cm)</label>
+            <input id="supportArmLength" type="number" value="8" min="0" />
+          </div>
+        </div>
       </div>
 
-      <div class="group-title">Tringle</div>
-
-      <div class="field">
-        <label for="rodLeftOverflow">Débord gauche (cm)</label>
-        <input id="rodLeftOverflow" type="number" value="20" min="0" />
+      <!-- Groupe Obstacles -->
+      <div class="collapsible-group">
+        <div class="group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span>Obstacles</span>
+          <span class="group-chevron">▾</span>
+        </div>
+        <div class="group-body">
+          <div id="obstacleAddSection">
+            <div class="field">
+              <button id="addObstacleBtn" type="button">+ Ajouter un obstacle</button>
+            </div>
+          </div>
+          <div id="obstacle1Section" style="display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <span style="font-weight:700;font-size:13px;color:#7c3aed">Obstacle 1</span>
+              <button id="removeObstacle1Btn" type="button" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:18px;padding:2px 6px" title="Supprimer">&times;</button>
+            </div>
+            <div class="field">
+              <label for="obstacle1Width">Largeur (cm)</label>
+              <input id="obstacle1Width" type="number" value="120" min="1" />
+            </div>
+            <div class="field">
+              <label for="obstacle1Height">Hauteur (cm)</label>
+              <input id="obstacle1Height" type="number" value="15" min="1" />
+            </div>
+            <div class="field">
+              <label for="obstacle1Depth">Profondeur 3D (cm)</label>
+              <input id="obstacle1Depth" type="number" value="15" min="1" />
+            </div>
+          </div>
+          <div id="obstacle2Section" style="display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <span style="font-weight:700;font-size:13px;color:#db2777">Obstacle 2</span>
+              <button id="removeObstacle2Btn" type="button" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:18px;padding:2px 6px" title="Supprimer">&times;</button>
+            </div>
+            <div class="field">
+              <label for="obstacle2Width">Largeur (cm)</label>
+              <input id="obstacle2Width" type="number" value="60" min="1" />
+            </div>
+            <div class="field">
+              <label for="obstacle2Height">Hauteur (cm)</label>
+              <input id="obstacle2Height" type="number" value="10" min="1" />
+            </div>
+            <div class="field">
+              <label for="obstacle2Depth">Profondeur 3D (cm)</label>
+              <input id="obstacle2Depth" type="number" value="10" min="1" />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="field">
-        <label for="rodRightOverflow">Débord droit (cm)</label>
-        <input id="rodRightOverflow" type="number" value="20" min="0" />
+      <!-- Groupe Photo -->
+      <div class="collapsible-group">
+        <div class="group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span>Photo</span>
+          <span class="group-chevron">▾</span>
+        </div>
+        <div class="group-body">
+          <div class="field">
+            <label for="imageUpload">Photo de la fenêtre</label>
+            <input id="imageUpload" type="file" accept="image/*" />
+          </div>
+          <div id="imageControlsSection" style="display:none">
+            <div class="field">
+              <label class="checkbox-row">
+                <input id="clipImageToWindow" type="checkbox" checked />
+                Masquer ce qui dépasse du cadre
+              </label>
+            </div>
+            <div class="field">
+              <button id="fitImageBtn" type="button">Ajuster l'image à la fenêtre</button>
+            </div>
+            <div class="field">
+              <button id="resetImageBtn" type="button">Recentrer l'image</button>
+            </div>
+            <div class="group-title">Recadrage image</div>
+            <div class="field">
+              <button id="toggleCropModeBtn" type="button">✂ Recadrer sur le schéma 2D</button>
+            </div>
+            <div class="field">
+              <label for="cropLeft">Couper à gauche (px)</label>
+              <input id="cropLeft" type="number" value="0" min="0" />
+            </div>
+            <div class="field">
+              <label for="cropRight">Couper à droite (px)</label>
+              <input id="cropRight" type="number" value="0" min="0" />
+            </div>
+            <div class="field">
+              <label for="cropTop">Couper en haut (px)</label>
+              <input id="cropTop" type="number" value="0" min="0" />
+            </div>
+            <div class="field">
+              <label for="cropBottom">Couper en bas (px)</label>
+              <input id="cropBottom" type="number" value="0" min="0" />
+            </div>
+            <div class="field">
+              <button id="resetCropBtn" type="button">Réinitialiser le recadrage</button>
+            </div>
+            <div class="field">
+              <button id="removeImageBtn" type="button" style="background:#fef2f2;color:#dc2626;border-color:#fca5a5">Supprimer l'image</button>
+            </div>
+          </div><!-- /imageControlsSection -->
+        </div>
       </div>
 
-      <div class="field">
-        <label for="rodTopOffset">Hauteur au-dessus de la fenêtre (cm)</label>
-        <input id="rodTopOffset" type="number" value="15" min="0" />
-      </div>
-
-      <div class="group-title">Fixations</div>
-
-      <div class="field">
-        <label for="supportLeftInset">Extrémité gauche → fixation gauche (cm)</label>
-        <input id="supportLeftInset" type="number" value="10" min="0" />
-      </div>
-
-      <div class="field">
-        <label for="supportRightInset">Extrémité droite → fixation droite (cm)</label>
-        <input id="supportRightInset" type="number" value="10" min="0" />
-      </div>
-
-      <div class="field">
-        <label for="supportArmLength">Distance tige → fixation FG/FD (cm)</label>
-        <input id="supportArmLength" type="number" value="8" min="0" />
-      </div>
-
-      <div class="group-title">Image</div>
-
-      <div class="field">
-        <label for="imageUpload">Photo de la fenêtre</label>
-        <input id="imageUpload" type="file" accept="image/*" />
-      </div>
-
-      <div class="field">
-        <label class="checkbox-row">
-          <input id="clipImageToWindow" type="checkbox" checked />
-          Masquer ce qui dépasse du cadre
-        </label>
-      </div>
-
-      <div class="field">
-        <button id="fitImageBtn" type="button">Ajuster l'image à la fenêtre</button>
-      </div>
-
-      <div class="field">
-        <button id="resetImageBtn" type="button">Recentrer l'image</button>
-      </div>
-
-      <div class="group-title">Recadrage image</div>
-
-      <div class="field">
-        <label for="cropLeft">Couper à gauche (px)</label>
-        <input id="cropLeft" type="number" value="0" min="0" />
-      </div>
-
-      <div class="field">
-        <label for="cropRight">Couper à droite (px)</label>
-        <input id="cropRight" type="number" value="0" min="0" />
-      </div>
-
-      <div class="field">
-        <label for="cropTop">Couper en haut (px)</label>
-        <input id="cropTop" type="number" value="0" min="0" />
-      </div>
-
-      <div class="field">
-        <label for="cropBottom">Couper en bas (px)</label>
-        <input id="cropBottom" type="number" value="0" min="0" />
-      </div>
-
-      <div class="field">
-        <button id="resetCropBtn" type="button">Réinitialiser le recadrage</button>
-      </div>
-
-      <div class="group-title">Affichage</div>
-
-      <div class="field">
-        <label for="scalePxPerCm">Échelle d'affichage (px/cm)</label>
-        <input id="scalePxPerCm" type="number" value="4" min="1" step="0.1" />
-      </div>
-
-      <div class="group-title">3D</div>
-
-      <div class="field">
-        <button id="open3DBtn" type="button" class="btn-primary">Ouvrir la visualisation 3D</button>
+      <!-- Groupe Affichage & 3D -->
+      <div class="collapsible-group">
+        <div class="group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span>Affichage & 3D</span>
+          <span class="group-chevron">▾</span>
+        </div>
+        <div class="group-body">
+          <div class="field">
+            <label for="scalePxPerCm">Échelle d'affichage (px/cm)</label>
+            <input id="scalePxPerCm" type="number" value="4" min="1" step="0.1" />
+          </div>
+          <div class="field">
+            <button id="open3DBtn" type="button" class="btn-primary">Ouvrir la visualisation 3D</button>
+          </div>
+        </div>
       </div>
     </div>
 
