@@ -290,13 +290,15 @@ function createBracket() {
   group.add(arm);
 
   // Anneau : tore dont l'axe principal est X (anneau vertical autour d'un axe horizontal)
-  // TorusGeometry(outerR, tubeR, …) avec outerR=1 et tubeR=0.28
-  // → inner hole radius = outerR - tubeR = 0.72 (en unité)
-  // → on scale l'anneau pour que le trou intérieur corresponde au rayon de la tringle
+  // TorusGeometry(outerR=1, tubeR=0.28) → inner hole radius = outerR - tubeR = 0.72 (unité)
+  // L'anneau est mis à l'échelle dans updateBracket() pour que le trou intérieur
+  // soit exactement égal au rayon de la tringle : ringScale = rodRadius / RING_INNER_HOLE
+  const RING_INNER_HOLE = 1 - 0.28; // 0.72 unité – correspond au rayon intérieur du tore unitaire
   const ring = new THREE.Mesh(
     new THREE.TorusGeometry(1, 0.28, 18, 52),
     supportMat
   );
+  ring.userData.innerHole = RING_INNER_HOLE;
   ring.rotation.y = Math.PI / 2; // anneau dans le plan YZ → encercle la tringle
   ring.castShadow = true;
   group.add(ring);
@@ -439,9 +441,8 @@ function syncScene() {
     bracket.arm.position.set(0, 0, arm / 2);
 
     // Anneau : au bout du bras, encercle la tringle
-    // TorusGeometry(1, 0.28) → inner hole = 0.72 unité
-    // On veut inner hole = r → scale = r / 0.72
-    const ringScale = r / 0.72;
+    // Le trou intérieur du tore doit correspondre exactement au rayon de la tringle
+    const ringScale = r / bracket.ring.userData.innerHole;
     bracket.ring.scale.setScalar(ringScale);
     bracket.ring.position.set(0, 0, arm + r);
   }
@@ -569,13 +570,13 @@ window.addEventListener("resize", onResize);
 // ─────────────────────────────────────────────
 // Liaison des contrôles (sliders)
 // ─────────────────────────────────────────────
-function bindSlider(inputEl, displayEl, stateKey, isFloat, onUpdate) {
+function bindSlider(inputEl, displayEl, stateKey, parseAsFloat, onUpdate) {
   inputEl.addEventListener("input", () => {
-    const v = isFloat
+    const v = parseAsFloat
       ? parseFloat(inputEl.value)
       : parseInt(inputEl.value, 10);
     state[stateKey] = v;
-    if (displayEl) displayEl.textContent = isFloat ? v.toFixed(1) : v;
+    if (displayEl) displayEl.textContent = parseAsFloat ? v.toFixed(1) : v;
     if (onUpdate) onUpdate(v);
     else syncScene();
   });
