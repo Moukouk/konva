@@ -20,13 +20,23 @@ const ui = {
   threshold: el("threshold"),
   thresholdHigh: el("thresholdHigh"),
   gaussBlur: el("gaussBlur"),
+  geometryMode: el("geometryMode"),
+  modelHeight: el("modelHeight"),
+  // Lathe options
   profilePoints: el("profilePoints"),
   splineSubdivisions: el("splineSubdivisions"),
   smoothing: el("smoothing"),
   latheSegments: el("latheSegments"),
-  modelHeight: el("modelHeight"),
   closedTop: el("closedTop"),
   closedBottom: el("closedBottom"),
+  // Extrude options
+  contourPoints: el("contourPoints"),
+  extrudeDepth: el("extrudeDepth"),
+  extrudeBevel: el("extrudeBevel"),
+  // Displacement options
+  dispScale: el("dispScale"),
+  dispSegments: el("dispSegments"),
+  // Material & render
   materialType: el("materialType"),
   envMapEnabled: el("envMapEnabled"),
   bloomEnabled: el("bloomEnabled"),
@@ -278,7 +288,7 @@ function createMaterials() {
 // ================================================================
 let loadedImage = null;
 let imageData = null;
-let latheMesh = null;
+let modelMesh = null;
 let profileGuideLine = null;
 let referencePlane = null;
 let referenceTexture = null;
@@ -506,9 +516,56 @@ function applySpline(radii, height, subdivisions) {
 }
 
 // ================================================================
-// BUILD 3D MODEL
+// GEOMETRY MODE UI TOGGLE
+// ================================================================
+function updateGeometryModeUI() {
+  const mode = ui.geometryMode.value;
+  el("latheOptions").style.display = mode === "lathe" ? "" : "none";
+  el("extrudeOptions").style.display = mode === "extrude" ? "" : "none";
+  el("displacementOptions").style.display = mode === "displacement" ? "" : "none";
+}
+
+// ================================================================
+// CLEAR 3D MESHES
+// ================================================================
+function clearModelMeshes() {
+  if (modelMesh) {
+    scene.remove(modelMesh);
+    modelMesh.geometry.dispose();
+    if (Array.isArray(modelMesh.material)) {
+      modelMesh.material.forEach((m) => m.dispose());
+    } else {
+      modelMesh.material.dispose();
+    }
+    modelMesh = null;
+  }
+  if (profileGuideLine) {
+    scene.remove(profileGuideLine);
+    profileGuideLine.geometry.dispose();
+    profileGuideLine.material.dispose();
+    profileGuideLine = null;
+  }
+}
+
+// ================================================================
+// BUILD 3D MODEL — dispatcher
 // ================================================================
 function buildModel() {
+  if (!imageData) return;
+  const mode = ui.geometryMode.value;
+  if (mode === "extrude") {
+    buildModelExtrude();
+  } else if (mode === "displacement") {
+    buildModelDisplacement();
+  } else {
+    buildModelLathe();
+  }
+}
+
+// ================================================================
+// BUILD 3D MODEL — LATHE (révolution)
+// ================================================================
+function buildModelLathe() {
   if (!imageData) return;
 
   const mode = ui.detectionMode.value;
@@ -561,10 +618,7 @@ function buildModel() {
   }
 
   // Clean previous
-  if (latheMesh) {
-    scene.remove(latheMesh);
-    latheMesh.geometry.dispose();
-  }
+  clearModelMeshes();
 
   const geometry = new THREE.LatheGeometry(finalProfile, segments);
   geometry.computeVertexNormals();
@@ -572,18 +626,12 @@ function buildModel() {
   const material = mats[matKey] || mats.gold;
   material.wireframe = ui.wireframe.checked;
 
-  latheMesh = new THREE.Mesh(geometry, material);
-  latheMesh.castShadow = true;
-  latheMesh.receiveShadow = true;
-  scene.add(latheMesh);
+  modelMesh = new THREE.Mesh(geometry, material);
+  modelMesh.castShadow = true;
+  modelMesh.receiveShadow = true;
+  scene.add(modelMesh);
 
   // Profile guide line
-  if (profileGuideLine) {
-    scene.remove(profileGuideLine);
-    profileGuideLine.geometry.dispose();
-    profileGuideLine.material.dispose();
-  }
-
   if (ui.showProfileLine.checked) {
     const lp = finalProfile.map((p) => new THREE.Vector3(p.x, p.y, 0));
     const lineGeo = new THREE.BufferGeometry().setFromPoints(lp);
@@ -591,8 +639,6 @@ function buildModel() {
     profileGuideLine = new THREE.Line(lineGeo, lineMat);
     profileGuideLine.position.x = -rScale * 1.5 - 1;
     scene.add(profileGuideLine);
-  } else {
-    profileGuideLine = null;
   }
 
   // Preview overlay
@@ -674,6 +720,295 @@ function drawPreviewOverlay(raw) {
     }
   }
   previewCtx.stroke();
+}
+
+// ================================================================
+// PREVIEW OVERLAY — EXTRUDE (shows full contour outline)
+// ================================================================
+function drawPreviewContour(pts) {
+  if (!loadedImage || pts.length < 2) return;
+
+  const w = previewCanvas.width;
+  const h = previewCanvas.height;
+
+  previewCtx.drawImage(loadedImage, 0, 0, w, h);
+
+  previewCtx.strokeStyle = "#00ff88";
+  previewCtx.lineWidth = 2;
+  previewCtx.setLineDash([]);
+  previewCtx.beginPath();
+  previewCtx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) {
+    previewCtx.lineTo(pts[i].x, pts[i].y);
+  }
+  previewCtx.closePath();
+  previewCtx.stroke();
+}
+
+// ================================================================
+// CONTOUR SHAPE EXTRACTION (for Extrude mode)
+// ================================================================
+function extractContourShapeOpenCV(imgData, w, h, cannyLow, cannyHigh, blurSize) {
+  const src = cv.matFromImageData(imgData);
+  const gray = new cv.Mat();
+  const blurred = new cv.Mat();
+  const edges = new cv.Mat();
+
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+  cv.GaussianBlur(gray, blurred, new cv.Size(blurSize, blurSize), 0);
+  cv.Canny(blurred, edges, cannyLow, cannyHigh);
+
+  const kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3));
+  const dilated = new cv.Mat();
+  cv.dilate(edges, dilated, kernel);
+
+  const contours = new cv.MatVector();
+  const hierarchy = new cv.Mat();
+  cv.findContours(dilated, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_TC89_L1);
+
+  let maxArea = 0, maxIdx = -1;
+  for (let i = 0; i < contours.size(); i++) {
+    const area = cv.contourArea(contours.get(i));
+    if (area > maxArea) { maxArea = area; maxIdx = i; }
+  }
+
+  const pts = [];
+  if (maxIdx >= 0) {
+    const cnt = contours.get(maxIdx);
+    for (let k = 0; k < cnt.data32S.length; k += 2) {
+      pts.push({ x: cnt.data32S[k], y: cnt.data32S[k + 1] });
+    }
+  }
+
+  src.delete(); gray.delete(); blurred.delete(); edges.delete();
+  kernel.delete(); dilated.delete(); contours.delete(); hierarchy.delete();
+
+  return pts;
+}
+
+function extractContourShapeSimple(imgData, w, h, threshVal) {
+  const data = imgData.data;
+  const bg = [0, 0, 0];
+  const corners = [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]];
+  for (const [px, py] of corners) {
+    const i = (py * w + px) * 4;
+    bg[0] += data[i] / 4; bg[1] += data[i + 1] / 4; bg[2] += data[i + 2] / 4;
+  }
+
+  const leftX = new Float32Array(h).fill(w);
+  const rightX = new Float32Array(h).fill(-1);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const diff = Math.abs(data[i] - bg[0]) + Math.abs(data[i + 1] - bg[1]) + Math.abs(data[i + 2] - bg[2]);
+      if (diff > threshVal) {
+        if (x < leftX[y]) leftX[y] = x;
+        if (x > rightX[y]) rightX[y] = x;
+      }
+    }
+  }
+
+  let topY = 0, bottomY = h - 1;
+  for (let y = 0; y < h; y++) { if (rightX[y] >= 0) { topY = y; break; } }
+  for (let y = h - 1; y >= 0; y--) { if (rightX[y] >= 0) { bottomY = y; break; } }
+
+  const pts = [];
+  // Right edge (top → bottom)
+  for (let y = topY; y <= bottomY; y++) {
+    if (rightX[y] >= 0) pts.push({ x: rightX[y], y });
+  }
+  // Left edge (bottom → top)
+  for (let y = bottomY; y >= topY; y--) {
+    if (leftX[y] < w) pts.push({ x: leftX[y], y });
+  }
+  return pts;
+}
+
+function uniformSamplePoints(pts, n) {
+  if (pts.length === 0) return [];
+  if (n <= 1) return [pts[0]];
+  if (pts.length <= n) return pts;
+  const result = [];
+  for (let i = 0; i < n; i++) {
+    result.push(pts[Math.round(i * (pts.length - 1) / (n - 1))]);
+  }
+  return result;
+}
+
+// ================================================================
+// BUILD 3D MODEL — EXTRUDE (silhouette 2D)
+// ================================================================
+function buildModelExtrude() {
+  if (!imageData) return;
+
+  const mode = ui.detectionMode.value;
+  const threshLow = parseInt(ui.threshold.value);
+  const threshHigh = parseInt(ui.thresholdHigh.value);
+  const blur = parseInt(ui.gaussBlur.value);
+  const numPts = parseInt(ui.contourPoints.value);
+  const height = parseFloat(ui.modelHeight.value);
+  const depth = parseFloat(ui.extrudeDepth.value);
+  const matKey = ui.materialType.value;
+
+  ui.status.textContent = "Extraction du contour...";
+
+  const w = previewCanvas.width;
+  const h = previewCanvas.height;
+
+  let rawPts;
+  if (mode === "opencv" && cvReady) {
+    rawPts = extractContourShapeOpenCV(imageData, w, h, threshLow, threshHigh, blur);
+  } else {
+    rawPts = extractContourShapeSimple(imageData, w, h, threshLow);
+  }
+
+  if (rawPts.length < 3) {
+    ui.status.textContent = "Contour insuffisant. Ajustez les seuils.";
+    return;
+  }
+
+  const sampled = uniformSamplePoints(rawPts, numPts);
+
+  // Bounding box
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of sampled) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+
+  const objW = (maxX - minX) || 1;
+  const objH = (maxY - minY) || 1;
+  const aspect = objW / objH;
+  const modelW = height * aspect;
+
+  // Map pixel → shape coords (centered, flip Y so up = top)
+  const toXY = (p) => [
+    ((p.x - minX) / objW - 0.5) * modelW,
+    ((maxY - p.y) / objH - 0.5) * height,
+  ];
+
+  const shape = new THREE.Shape();
+  const [fx, fy] = toXY(sampled[0]);
+  shape.moveTo(fx, fy);
+  for (let i = 1; i < sampled.length; i++) {
+    const [sx, sy] = toXY(sampled[i]);
+    shape.lineTo(sx, sy);
+  }
+  shape.closePath();
+
+  const bevelEnabled = ui.extrudeBevel.checked;
+  // Bevel is capped at 8% of depth or 3% of the smallest model dimension
+  const BEVEL_DEPTH_RATIO = 0.08;
+  const BEVEL_SIZE_RATIO = 0.03;
+  const bevelSize = Math.min(depth * BEVEL_DEPTH_RATIO, Math.min(modelW, height) * BEVEL_SIZE_RATIO);
+  const extrudeSettings = {
+    depth,
+    bevelEnabled,
+    bevelThickness: bevelSize,
+    bevelSize,
+    bevelSegments: 3,
+    steps: 1,
+  };
+
+  clearModelMeshes();
+
+  const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  geometry.computeVertexNormals();
+  // Center the extrusion along Z
+  geometry.translate(0, 0, -depth / 2);
+
+  const material = mats[matKey] || mats.gold;
+  material.wireframe = ui.wireframe.checked;
+  // Ensure double-side rendering so inside bevel is visible
+  material.side = THREE.DoubleSide;
+
+  modelMesh = new THREE.Mesh(geometry, material);
+  modelMesh.castShadow = true;
+  modelMesh.receiveShadow = true;
+  scene.add(modelMesh);
+
+  drawPreviewContour(sampled);
+
+  ui.status.textContent = `Modèle extrudé : ${sampled.length} pts × profondeur ${depth.toFixed(2)}`;
+}
+
+// ================================================================
+// BUILD 3D MODEL — DISPLACEMENT (relief)
+// ================================================================
+function buildModelDisplacement() {
+  if (!imageData || !loadedImage) return;
+
+  const height = parseFloat(ui.modelHeight.value);
+  const aspect = loadedImage.width / loadedImage.height;
+  const width = height * aspect;
+  const scale = parseFloat(ui.dispScale.value);
+  const segments = parseInt(ui.dispSegments.value);
+  const matKey = ui.materialType.value;
+
+  clearModelMeshes();
+
+  const segsX = segments;
+  const segsY = Math.max(1, Math.round(segments / aspect));
+
+  const geometry = new THREE.PlaneGeometry(width, height, segsX, segsY);
+
+  // Per-vertex brightness displacement along Z
+  const pos = geometry.attributes.position;
+  const imgW = previewCanvas.width;
+  const imgH = previewCanvas.height;
+  const data = imageData.data;
+
+  for (let i = 0; i < pos.count; i++) {
+    const vx = pos.getX(i);
+    const vy = pos.getY(i);
+    // Map vertex position → pixel coordinate
+    const px = Math.round(((vx / width) + 0.5) * (imgW - 1));
+    const py = Math.round(((0.5 - vy / height)) * (imgH - 1));
+    const cx = Math.max(0, Math.min(imgW - 1, px));
+    const cy = Math.max(0, Math.min(imgH - 1, py));
+    const idx = (cy * imgW + cx) * 4;
+    // BT.601 luma coefficients (R, G, B → perceived brightness)
+    const brightness = (data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114) / 255;
+    pos.setZ(i, brightness * scale);
+  }
+  pos.needsUpdate = true;
+  geometry.computeVertexNormals();
+
+  const env = ui.envMapEnabled.checked ? envMap : null;
+  let material;
+  if (matKey === "texture" && imageTexture) {
+    material = new THREE.MeshStandardMaterial({
+      map: imageTexture,
+      envMap: env,
+      envMapIntensity: 0.3,
+      roughness: 0.5,
+      metalness: 0.05,
+      wireframe: ui.wireframe.checked,
+      side: THREE.DoubleSide,
+    });
+  } else {
+    const baseMat = mats[matKey] || mats.gold;
+    material = baseMat.clone();
+    material.wireframe = ui.wireframe.checked;
+    material.side = THREE.DoubleSide;
+  }
+
+  modelMesh = new THREE.Mesh(geometry, material);
+  modelMesh.castShadow = true;
+  modelMesh.receiveShadow = true;
+  // Stand the plane vertically, centered on the Y axis
+  modelMesh.position.set(0, height / 2, 0);
+  scene.add(modelMesh);
+
+  // Draw the image on the preview canvas
+  const w = previewCanvas.width;
+  const h = previewCanvas.height;
+  previewCtx.drawImage(loadedImage, 0, 0, w, h);
+
+  ui.status.textContent = `Relief ${segsX}×${segsY} = ${(segsX * segsY).toLocaleString()} vertices`;
 }
 
 // ================================================================
@@ -769,10 +1104,18 @@ function bindSlider(input, display, cb) {
 bindSlider(ui.threshold, el("thresholdVal"), buildModel);
 bindSlider(ui.thresholdHigh, el("thresholdHighVal"), buildModel);
 bindSlider(ui.gaussBlur, el("gaussBlurVal"), buildModel);
+// Lathe-specific sliders
 bindSlider(ui.profilePoints, el("profilePointsVal"), buildModel);
 bindSlider(ui.splineSubdivisions, el("splineSubdivisionsVal"), buildModel);
 bindSlider(ui.smoothing, el("smoothingVal"), buildModel);
 bindSlider(ui.latheSegments, el("latheSegmentsVal"), buildModel);
+// Extrude-specific sliders
+bindSlider(ui.contourPoints, el("contourPointsVal"), buildModel);
+bindSlider(ui.extrudeDepth, el("extrudeDepthVal"), buildModel);
+// Displacement-specific sliders
+bindSlider(ui.dispScale, el("dispScaleVal"), buildModel);
+bindSlider(ui.dispSegments, el("dispSegmentsVal"), buildModel);
+
 bindSlider(ui.modelHeight, el("modelHeightVal"), () => {
   buildModel();
   updateReferencePlane();
@@ -789,31 +1132,43 @@ bindSlider(ui.imageOpacity, el("imageOpacityVal"), () => {
 });
 
 ui.detectionMode.addEventListener("change", buildModel);
+ui.geometryMode.addEventListener("change", () => {
+  updateGeometryModeUI();
+  buildModel();
+});
+ui.extrudeBevel.addEventListener("change", buildModel);
 ui.closedTop.addEventListener("change", buildModel);
 ui.closedBottom.addEventListener("change", buildModel);
 ui.wireframe.addEventListener("change", buildModel);
 ui.showProfileLine.addEventListener("change", buildModel);
 
 ui.materialType.addEventListener("change", () => {
-  if (latheMesh) {
-    const matKey = ui.materialType.value;
-    if (matKey === "texture" && !imageTexture) {
-      ui.status.textContent = "Uploadez d'abord une image pour utiliser la texture.";
-      return;
-    }
+  const matKey = ui.materialType.value;
+  if (matKey === "texture" && !imageTexture) {
+    ui.status.textContent = "Uploadez d'abord une image pour utiliser la texture.";
+    return;
+  }
+  // Displacement mode builds a custom material — must rebuild
+  const gMode = ui.geometryMode.value;
+  if (gMode === "displacement") {
+    buildModel();
+    return;
+  }
+  if (modelMesh) {
     const mat = mats[matKey] || mats.gold;
     mat.wireframe = ui.wireframe.checked;
-    latheMesh.material = mat;
+    if (gMode === "extrude") mat.side = THREE.DoubleSide;
+    modelMesh.material = mat;
   }
 });
 
 ui.envMapEnabled.addEventListener("change", () => {
   mats = createMaterials();
-  if (latheMesh) {
+  if (modelMesh) {
     const matKey = ui.materialType.value;
     const mat = mats[matKey] || mats.gold;
     mat.wireframe = ui.wireframe.checked;
-    latheMesh.material = mat;
+    modelMesh.material = mat;
   }
 });
 
@@ -834,12 +1189,12 @@ ui.resetCamera.addEventListener("click", () => {
 // EXPORT OBJ
 // ================================================================
 ui.exportOBJ.addEventListener("click", () => {
-  if (!latheMesh) {
+  if (!modelMesh) {
     ui.status.textContent = "Rien à exporter.";
     return;
   }
   const exporter = new OBJExporter();
-  const objStr = exporter.parse(latheMesh);
+  const objStr = exporter.parse(modelMesh);
   const blob = new Blob([objStr], { type: "text/plain" });
   const link = document.createElement("a");
   link.download = "modele-3d.obj";
