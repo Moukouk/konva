@@ -263,6 +263,33 @@
       <span class="range-value" id="smoothingVal">5</span>
     </div>
 
+    <label>D&eacute;calage axe X (%)</label>
+    <div class="range-row">
+      <input id="axisOffset" type="range" min="-50" max="50" step="1" value="0" />
+      <span class="range-value" id="axisOffsetVal">0</span>
+    </div>
+
+    <label>&Eacute;chelle rayon</label>
+    <div class="range-row">
+      <input id="radiusScale" type="range" min="0.2" max="3.0" step="0.05" value="1.0" />
+      <span class="range-value" id="radiusScaleVal">1.0</span>
+    </div>
+
+    <label class="checkbox-row">
+      <input id="bilateralProfile" type="checkbox" checked />
+      Profil bilat&eacute;ral (&frac12; largeur)
+    </label>
+
+    <label class="checkbox-row">
+      <input id="preserveAspect" type="checkbox" checked />
+      Conserver le ratio de l&apos;image
+    </label>
+
+    <label class="checkbox-row">
+      <input id="flipProfile" type="checkbox" />
+      Inverser profil (haut/bas)
+    </label>
+
     <label>Segments de r&eacute;volution</label>
     <div class="range-row">
       <input id="latheSegments" type="range" min="12" max="256" step="4" value="96" />
