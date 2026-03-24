@@ -1,4 +1,4 @@
-import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+import * as THREE from "three";
 import { OrbitControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 import { EffectComposer } from "https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/RenderPass.js";
@@ -327,7 +327,6 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
 
   if (maxIdx >= 0) {
     const cnt = contours.get(maxIdx);
-    const rect = cv.boundingRect(cnt);
 
     // For each row in the bounding rect, find min and max X on the contour
     const rowMinX = new Float32Array(height).fill(width);
@@ -352,7 +351,7 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
     }
 
     if (bottomY > topY) {
-      // Center X = average mid-point
+      // Center X = average mid-point across all rows
       let sumC = 0, cntC = 0;
       for (let y = topY; y <= bottomY; y++) {
         if (rowMaxX[y] >= 0 && rowMinX[y] < width) {
@@ -364,7 +363,13 @@ function extractWithOpenCV(imgData, width, height, cannyLow, cannyHigh, blurSize
       const objH = bottomY - topY;
 
       for (let y = topY; y <= bottomY; y++) {
-        const radius = rowMaxX[y] >= 0 ? Math.max(0, rowMaxX[y] - centerX) : 0;
+        // Use the average half-width (left and right edges) for a faithful revolution profile
+        let radius = 0;
+        if (rowMaxX[y] >= 0 && rowMinX[y] < width) {
+          const halfRight = Math.max(0, rowMaxX[y] - centerX);
+          const halfLeft = Math.max(0, centerX - rowMinX[y]);
+          radius = (halfRight + halfLeft) / 2;
+        }
         rawProfile.push({
           radius: radius / (objH || 1),
           t: (y - topY) / (objH || 1),
@@ -442,7 +447,13 @@ function extractSimple(imgData, width, height, thresholdVal) {
 
   const rawProfile = [];
   for (let y = topY; y <= bottomY; y++) {
-    const radius = rightEdge[y] > 0 ? Math.max(0, rightEdge[y] - centerX) : 0;
+    // Use the average half-width (left and right edges) for a faithful revolution profile
+    let radius = 0;
+    if (rightEdge[y] > 0 && leftEdge[y] < width) {
+      const halfRight = Math.max(0, rightEdge[y] - centerX);
+      const halfLeft = Math.max(0, centerX - leftEdge[y]);
+      radius = (halfRight + halfLeft) / 2;
+    }
     rawProfile.push({
       radius: radius / (objH || 1),
       t: (y - topY) / (objH || 1),

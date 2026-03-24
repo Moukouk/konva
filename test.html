@@ -61,15 +61,6 @@
       line-height: 1.5;
     }
 
-    .section-title {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #7c3aed;
-      margin: 16px 0 8px;
-    }
-
     #ui label {
       display: block;
       margin-top: 10px;
@@ -157,6 +148,55 @@
       margin: 16px 0;
     }
 
+    .collapsible-group {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+
+    .group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.04);
+      cursor: pointer;
+      user-select: none;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #7c3aed;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .group-header:hover {
+      background: rgba(255,255,255,0.07);
+    }
+
+    .group-chevron {
+      font-size: 11px;
+      transition: transform 0.2s ease;
+      color: #7c3aed;
+    }
+
+    .collapsible-group.collapsed .group-chevron {
+      transform: rotate(-90deg);
+    }
+
+    .group-body {
+      padding: 10px 12px 4px;
+    }
+
+    .collapsible-group.collapsed .group-body {
+      display: none;
+    }
+
+    .collapsible-group.collapsed .group-header {
+      border-bottom: none;
+    }
+
     #previewCanvas {
       width: 100%;
       margin-top: 8px;
@@ -215,124 +255,138 @@
 
     <hr class="separator" />
 
-    <div class="section-title">D&eacute;tection de contour</div>
+    <div class="collapsible-group">
+      <div class="group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        D&eacute;tection de contour
+        <span class="group-chevron">&#9660;</span>
+      </div>
+      <div class="group-body">
+        <label>Mode de d&eacute;tection</label>
+        <select id="detectionMode">
+          <option value="opencv" selected>OpenCV Canny (recommand&eacute;)</option>
+          <option value="simple">Seuillage simple (fallback)</option>
+        </select>
 
-    <label>Mode de d&eacute;tection</label>
-    <select id="detectionMode">
-      <option value="opencv" selected>OpenCV Canny (recommand&eacute;)</option>
-      <option value="simple">Seuillage simple (fallback)</option>
-    </select>
+        <label>Seuil bas Canny / Seuil simple</label>
+        <div class="range-row">
+          <input id="threshold" type="range" min="1" max="254" step="1" value="50" />
+          <span class="range-value" id="thresholdVal">50</span>
+        </div>
 
-    <label>Seuil bas Canny / Seuil simple</label>
-    <div class="range-row">
-      <input id="threshold" type="range" min="1" max="254" step="1" value="50" />
-      <span class="range-value" id="thresholdVal">50</span>
+        <label>Seuil haut Canny</label>
+        <div class="range-row">
+          <input id="thresholdHigh" type="range" min="10" max="400" step="5" value="150" />
+          <span class="range-value" id="thresholdHighVal">150</span>
+        </div>
+
+        <label>Flou Gaussien (pr&eacute;traitement)</label>
+        <div class="range-row">
+          <input id="gaussBlur" type="range" min="1" max="15" step="2" value="5" />
+          <span class="range-value" id="gaussBlurVal">5</span>
+        </div>
+      </div>
     </div>
 
-    <label>Seuil haut Canny</label>
-    <div class="range-row">
-      <input id="thresholdHigh" type="range" min="10" max="400" step="5" value="150" />
-      <span class="range-value" id="thresholdHighVal">150</span>
+    <div class="collapsible-group">
+      <div class="group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        Profil &amp; G&eacute;om&eacute;trie
+        <span class="group-chevron">&#9660;</span>
+      </div>
+      <div class="group-body">
+        <label>Points du profil</label>
+        <div class="range-row">
+          <input id="profilePoints" type="range" min="8" max="300" step="1" value="80" />
+          <span class="range-value" id="profilePointsVal">80</span>
+        </div>
+
+        <label>Lissage spline (subdivisions)</label>
+        <div class="range-row">
+          <input id="splineSubdivisions" type="range" min="0" max="8" step="1" value="3" />
+          <span class="range-value" id="splineSubdivisionsVal">3</span>
+        </div>
+
+        <label>Lissage passes (moyenne mobile)</label>
+        <div class="range-row">
+          <input id="smoothing" type="range" min="0" max="30" step="1" value="5" />
+          <span class="range-value" id="smoothingVal">5</span>
+        </div>
+
+        <label>Segments de r&eacute;volution</label>
+        <div class="range-row">
+          <input id="latheSegments" type="range" min="12" max="256" step="4" value="96" />
+          <span class="range-value" id="latheSegmentsVal">96</span>
+        </div>
+
+        <label>Hauteur du mod&egrave;le</label>
+        <div class="range-row">
+          <input id="modelHeight" type="range" min="1" max="15" step="0.1" value="5" />
+          <span class="range-value" id="modelHeightVal">5</span>
+        </div>
+
+        <label class="checkbox-row">
+          <input id="closedTop" type="checkbox" />
+          Fermer le sommet
+        </label>
+        <label class="checkbox-row">
+          <input id="closedBottom" type="checkbox" />
+          Fermer la base
+        </label>
+      </div>
     </div>
 
-    <label>Flou Gaussien (pr&eacute;traitement)</label>
-    <div class="range-row">
-      <input id="gaussBlur" type="range" min="1" max="15" step="2" value="5" />
-      <span class="range-value" id="gaussBlurVal">5</span>
+    <div class="collapsible-group">
+      <div class="group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+        Mat&eacute;riau &amp; Rendu
+        <span class="group-chevron">&#9660;</span>
+      </div>
+      <div class="group-body">
+        <label for="materialType">Mat&eacute;riau</label>
+        <select id="materialType">
+          <option value="texture">&#x1F5BC; Texture image</option>
+          <option value="gold">Or</option>
+          <option value="silver">Argent</option>
+          <option value="copper">Cuivre</option>
+          <option value="chrome">Chrome</option>
+          <option value="ceramic">C&eacute;ramique blanche</option>
+          <option value="glass">Verre</option>
+          <option value="wood">Bois</option>
+          <option value="marble">Marbre</option>
+          <option value="obsidian">Obsidienne</option>
+        </select>
+
+        <label class="checkbox-row">
+          <input id="envMapEnabled" type="checkbox" checked />
+          Environment Map (r&eacute;flexions)
+        </label>
+
+        <label class="checkbox-row">
+          <input id="bloomEnabled" type="checkbox" checked />
+          Bloom (lueur)
+        </label>
+
+        <label>Intensit&eacute; Bloom</label>
+        <div class="range-row">
+          <input id="bloomStrength" type="range" min="0" max="2" step="0.05" value="0.4" />
+          <span class="range-value" id="bloomStrengthVal">0.4</span>
+        </div>
+
+        <label>Opacit&eacute; image de r&eacute;f&eacute;rence</label>
+        <div class="range-row">
+          <input id="imageOpacity" type="range" min="0" max="1" step="0.01" value="0.5" />
+          <span class="range-value" id="imageOpacityVal">0.5</span>
+        </div>
+
+        <label class="checkbox-row">
+          <input id="wireframe" type="checkbox" />
+          Wireframe
+        </label>
+
+        <label class="checkbox-row">
+          <input id="showProfileLine" type="checkbox" checked />
+          Ligne de profil
+        </label>
+      </div>
     </div>
-
-    <hr class="separator" />
-
-    <div class="section-title">Profil &amp; G&eacute;om&eacute;trie</div>
-
-    <label>Points du profil</label>
-    <div class="range-row">
-      <input id="profilePoints" type="range" min="8" max="300" step="1" value="80" />
-      <span class="range-value" id="profilePointsVal">80</span>
-    </div>
-
-    <label>Lissage spline (subdivisions)</label>
-    <div class="range-row">
-      <input id="splineSubdivisions" type="range" min="0" max="8" step="1" value="3" />
-      <span class="range-value" id="splineSubdivisionsVal">3</span>
-    </div>
-
-    <label>Lissage passes (moyenne mobile)</label>
-    <div class="range-row">
-      <input id="smoothing" type="range" min="0" max="30" step="1" value="5" />
-      <span class="range-value" id="smoothingVal">5</span>
-    </div>
-
-    <label>Segments de r&eacute;volution</label>
-    <div class="range-row">
-      <input id="latheSegments" type="range" min="12" max="256" step="4" value="96" />
-      <span class="range-value" id="latheSegmentsVal">96</span>
-    </div>
-
-    <label>Hauteur du mod&egrave;le</label>
-    <div class="range-row">
-      <input id="modelHeight" type="range" min="1" max="15" step="0.1" value="5" />
-      <span class="range-value" id="modelHeightVal">5</span>
-    </div>
-
-    <label class="checkbox-row">
-      <input id="closedTop" type="checkbox" />
-      Fermer le sommet
-    </label>
-    <label class="checkbox-row">
-      <input id="closedBottom" type="checkbox" />
-      Fermer la base
-    </label>
-
-    <hr class="separator" />
-
-    <div class="section-title">Mat&eacute;riau &amp; Rendu</div>
-
-    <label for="materialType">Mat&eacute;riau</label>
-    <select id="materialType">
-      <option value="texture">&#x1F5BC; Texture image</option>
-      <option value="gold">Or</option>
-      <option value="silver">Argent</option>
-      <option value="copper">Cuivre</option>
-      <option value="chrome">Chrome</option>
-      <option value="ceramic">C&eacute;ramique blanche</option>
-      <option value="glass">Verre</option>
-      <option value="wood">Bois</option>
-      <option value="marble">Marbre</option>
-      <option value="obsidian">Obsidienne</option>
-    </select>
-
-    <label class="checkbox-row">
-      <input id="envMapEnabled" type="checkbox" checked />
-      Environment Map (r&eacute;flexions)
-    </label>
-
-    <label class="checkbox-row">
-      <input id="bloomEnabled" type="checkbox" checked />
-      Bloom (lueur)
-    </label>
-
-    <label>Intensit&eacute; Bloom</label>
-    <div class="range-row">
-      <input id="bloomStrength" type="range" min="0" max="2" step="0.05" value="0.4" />
-      <span class="range-value" id="bloomStrengthVal">0.4</span>
-    </div>
-
-    <label>Opacit&eacute; image de r&eacute;f&eacute;rence</label>
-    <div class="range-row">
-      <input id="imageOpacity" type="range" min="0" max="1" step="0.01" value="0.5" />
-      <span class="range-value" id="imageOpacityVal">0.5</span>
-    </div>
-
-    <label class="checkbox-row">
-      <input id="wireframe" type="checkbox" />
-      Wireframe
-    </label>
-
-    <label class="checkbox-row">
-      <input id="showProfileLine" type="checkbox" checked />
-      Ligne de profil
-    </label>
 
     <hr class="separator" />
 
